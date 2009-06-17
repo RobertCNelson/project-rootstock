@@ -1,0 +1,67 @@
+
+You will need to install on your Ubuntu machine:
+ * qemu
+ * debootstrap_1.0.10ubuntu3_all.deb or newer
+
+  The following example will create a tarball of xubuntu-desktop based image for your target device (i.e. a beagleboard):
+
+  sudo ./build-arm-rootfs --fqdn beagleboard --login ubuntu --password temppwd --imagesize 2G --seed xubuntu-desktop
+
+  The following example will create a tarball of ubuntu-desktop based image for your target device:
+
+  sudo ./build-arm-rootfs --fqdn ubuntu --login ubuntu --password ubuntu --imagesize 3G --seed ubuntu-desktop
+
+  The options --fqdn (or -f), --login (or -l) and --password (-p) are required for the initial setup. Calling the script with --help shows you all the additional options that can be used to change the setup of the created rootfs.
+
+  (Recommendation: Don't pick a serious password if you plan to install this rootfs on other systems as well, rather pick something trivial and change your user password after the first login.)
+
+   == Building a qemu-only image ==
+
+   In case you want to just create an image for usage with qemu instead of building a rootfs tarball, the build-armel-rootfs script has the --notarball option, just call it like below and you will get a qemu image for usage with qemu-system-arm
+
+   sudo ./build-arm-rootfs --fqdn qemu-test --login qemu --password qemupwd --notarball
+
+   == Settings ==
+
+   It is usually not necessary to set any additional options, things like the locale, keyboard setup and timezone will be automatically determined from the building host and will just be set accordingly in your target system, use the script options if you want any of these settings to differ from the build machine.
+
+   Typical images (example settings):
+
+   To build a xubuntu-desktop image use the following options:
+
+   --imagesize 2G --seed xubuntu-desktop
+
+   For an ubuntu-desktop image (a similar size is needed if you want a kubuntu image):
+
+   --imagesize 3G --seed ubuntu-desktop
+
+   A typical remote development comandline environment if you run an armel board headless (note that you should edit /etc/network/interfaces and set up your network device on first login for this):
+
+   --imagesize 3G --seed build-essential,openssh-server
+
+   A very light desktop (lxde):
+
+   --seed lxde,gdm
+
+== Using a qemu image ==
+
+If you created your qemu image and want to start a work environment (to compile packages or build applications), grab the kernel from:
+
+http://people.ubuntu.com/~ogra/arm/qemu/kernel/
+
+and start qemu with the following command (indeed, you need to adjust the rootfs img name to whatever your image is called)
+
+sudo qemu-system-arm -M versatilepb -kernel ./vmlinuz-2.6.28-versatile -hda arm-rootfs.img -m 256 -append "root=/dev/sda mem=256M ro"
+
+In the booted image you can then log in with the user and password you defined during image creation.
+
+ (To be able to copy files from or to the host system it is helpful to install openssh-server on the host and use the scp command inside qemu.)
+
+== Bugs and Problems ==
+
+If you run into any problems, please contact "ogra" in #ubuntu-arm on irc.freenode.net or send a mail to ogra@ubuntu.com
+
+If you run into an error '''please keep the log''' of your failed build
+
+A known issue is that language-pack handling is not implemented yet, please install the packages for your language manually post install.
+

@@ -1,0 +1,534 @@
+#!/bin/sh
+#
+#  Copyright (c) 2009 Canonical
+#
+#  Author: Oliver Grawert <ogra@canonical.com>
+#
+#  This program is free software; you can redistribute it and/or
+#  modify it under the terms of the GNU General Public License as
+#  published by the Free Software Foundation; either version 2 of the
+#  License, or (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307
+#  USA
+#
+######################################################################
+# This script creates a tgz file of an armel rootfs you can untar in #
+# a partition for your target hardware (beagleboard, EVM or freescale#
+# board were tested with this yet)                                   #
+# See https://wiki.ubuntu.com/ARM/RootfsFromScratch for more details #
+######################################################################
+#
+# TODO: - install langpacks for selected locale
+#
+######################################################################
+
+set -e
+
+trap cleanup 1 2 3 6
+
+cleanup()
+{
+      echo "I: Cleaning up..."
+      echo "I: Killed ... " >>$LOG 2>&1
+
+      # kill debootstrap if its running
+      if [ -e ${DBPID} ];then
+          DPID=$(cat ${DBPID})
+          kill -9 $DPID >/dev/null 2>&1
+      fi
+
+      # kill qemu if its running
+      if [ -e ${QEMUPID} ];then
+          QPID=$(cat ${QEMUPID})
+          kill -9 $QPID >/dev/null 2>&1
+      fi
+
+      for i in 1 2 3 4 5; do
+          echo -n '.'
+          sleep 1
+      done
+      echo
+      savelog
+
+      # unmount loop mount
+      if [ "$(mount| grep ${MOUNTPOINT})" ];then
+          umount $MOUNTPOINT
+      fi
+
+      # wipe builddir
+      rm -rf $BUILDDIR
+      echo "I: done ..."
+      exit 0
+}
+
+usage()
+{
+    echo "usage: $(basename $0) -f <hostname> -l <login name> -p <password> [option]"
+echo '
+required options:
+-f --fqdn <hostname>
+    Hostname to be used for the target system
+-l --login <login name>
+    Login ID of the admin user created during setup
+-p --password <password>
+    Password of the admin user created during setup
+
+additional options:
+-h --help
+    this help
+-n --fullname <quoted string>
+    Full Name of the admin user created during setup
+    (default: "Ubuntu System User")
+-s --seed <csv list>
+    List of packages to install (i.e. ubuntu-desktop)
+    (default: ubuntu-minimal)
+-i --imagesize <size>M/G
+    Size of the target filesystem to be created (i.e. 500M)
+    (default: 1G)
+-m --mirror <url>
+    apt mirror to use (i.e. http://ports.ubuntu.com/ubuntu-ports)
+    (default: http://ports.ubuntu.com/ubuntu-ports)
+-c --components <csv list>
+    Archive components
+    (default: main,universe)
+-t --timezone <timezone>
+    Timezone for the system (i.e. Europe/Berlin)
+    (default: buildsystem timezone)
+-x --locale <locale.encoding>
+    Language used in the installed system (i.e. en_US.UTF-8)
+    (default: buildsystem locale)
+
+keyboard options:
+--kblayout <layout>
+    Keyboard layout (i.e. us)
+    (default: buildsystem kblayout)
+--kbmodel <model>
+    Keyboard model (i.e. pc105)
+    (default: buildsystem kbmodel)
+--kbvariant <variant>
+    Keyboard variant (i.e. nodeadkeys)
+    (default: buildsystem kbvariant)
+--kboptions <options>
+    Additional keyboard options
+    (default: buildsystem kboptions)
+
+output options:
+--keepimage
+    Keep the qemu image instead of deleting it
+--notarball
+    Do not roll a tarball of the rootfs (autosets --keepimage)
+
+extra parameters:
+-q --quiet
+    Quiet operation, only write to log
+'
+    exit 0
+}
+
+checkparm()
+{
+    if [ "$(echo $1|grep ^'\-')" ];then
+        echo "E: Need an argument"
+        usage
+    fi
+}
+
+savelog()
+{
+    mv $LOG $DIR/
+    echo "I: A logfile was saved as $DIR/$(basename $0)-$STAMP.log"
+}
+
+create_raw_image()
+{
+    [ $QUIET ] || echo "I: Creating temporary Image"
+    LANG=C qemu-img create $IMAGENAME $IMAGESIZE >$LOG 2>&1
+    LANG=C mkfs.ext2 -F $IMAGENAME >>$LOG 2>&1
+}
+
+mount_image()
+{
+    [ $QUIET ] || echo "I: Mounting temporary Image"
+    if [ ! -d $MOUNTPOINT ];then
+        mkdir -p $MOUNTPOINT >>$LOG 2>&1
+    fi
+    mount -o loop $IMAGENAME $MOUNTPOINT >>$LOG 2>&1
+}
+
+run_first_stage()
+{
+    [ $QUIET ] || echo "I: Running first stage"
+
+    mkfifo $DBFIFO
+
+    LANG=C debootstrap --foreign --arch=armel $DIST $MOUNTPOINT $MIRROR >$DBFIFO 2>&1 &
+    echo $! > $DBPID
+
+    while read line; do
+        echo ${line} >>$LOG 2>&1
+        if [ ! "$QUIET" ];then
+            echo "${line}"
+        fi
+    done <$DBFIFO
+
+    rm -f $DBFIFO
+    rm -f $DBPID
+
+    [ $QUIET ] || echo "I: First stage install done"
+}
+
+run_vm()
+{
+    # get kernel
+    [ $QUIET ] || echo "I: Getting Virtual Machine kernel from the server"
+    LANG=C wget -O $BUILDDIR/qemu-vmlinuz $KERNEL >>$LOG 2>&1
+
+    mkfifo $QEMUFIFO
+
+    [ $QUIET ] || echo "I: Switching to Virtual Machine for second stage processing"
+    QEMUOPTS="-M versatilepb -kernel ${BUILDDIR}/qemu-vmlinuz -no-reboot -nographic -pidfile ${QEMUPID} -hda ${IMAGENAME} -m 256M"
+    APPEND="console=ttyAMA0,115200n8 root=/dev/sda rw init=/bin/installer quiet"
+
+    qemu-system-arm $QEMUOPTS -append "${APPEND}" >$QEMUFIFO 2>&1 &
+
+    while read line; do
+        if [ "$(echo $line|grep panic)" ];then
+            echo ${line} >>$LOG 2>&1
+            echo "E: Second stage build in Virtual Machine failed !"
+            echo "E: Please see the log to see what went wrong."
+            cleanup
+        fi
+        if [ "$line" ] && [ ! "$(echo $line|grep 'Uncompressing Linux')" ] && \
+            [ ! "$(echo $line|grep 'unknown LCD panel')" ] && \
+            [ ! "$(echo $line|grep 'Restarting system')" ];then
+            echo ${line} >>$LOG 2>&1
+            if [ ! "$QUIET" ];then
+                echo "${line}"
+            fi
+        fi
+    done <$QEMUFIFO
+
+    rm -f $QEMUPID
+
+    [ $QUIET ] || echo "I: Virtual Machine done"
+}
+
+roll_tarball()
+{
+    # create a rootfs tgz
+    [ $QUIET ] || echo "I: Creating tarball from rootfs"
+
+    mount_image
+
+    cd $MOUNTPOINT >>$LOG 2>&1
+    LANG=C tar czvf ../armel-rootfs-$STAMP.tgz . >>$LOG 2>&1
+    mv ../armel-rootfs-$STAMP.tgz $DIR >>$LOG 2>&1
+
+    echo "I: ARM rootfs created as $DIR/armel-rootfs-$STAMP.tgz"
+
+    cd - >/dev/null 2>&1
+}
+
+save_qemu_img()
+{
+    cp $IMAGENAME $DIR
+    echo "I: Qemu image saved as $DIR/qemu-armel-$STAMP.img"
+}
+
+# target system name
+FQDN=""
+
+# target user
+NEWUSER=""
+FULLNAME="Ubuntu System User"
+PASSWD=""
+
+# target package selection
+SELECTION="ubuntu-minimal" # change here to install ubuntu-desktop
+IMAGESIZE="1G" # make this 3G for an ubuntu-desktop install
+
+# default to the build system locale
+. /etc/environment
+NEWLOCALE=$LANG
+
+# default to the build system keyboard setup
+KBDATA="/etc/default/console-setup"
+XKBL=$(grep XKBLAYOUT ${KBDATA}|tr -d '"'|cut -d '=' -f2)
+XKBM=$(grep XKBMODEL ${KBDATA}|tr -d '"'|cut -d '=' -f2)
+XKBV=$(grep XKBVARIANT ${KBDATA}|tr -d '"'|cut -d '=' -f2)
+XKBO=$(grep XKBOPTIONS ${KBDATA}|tr -d '"'|cut -d '=' -f2)
+
+# default to the build system timezone
+TZONE=$(cat /etc/timezone)
+
+# target apt setup
+DIST="karmic"
+MIRROR="http://ports.ubuntu.com/ubuntu-ports"
+COMPONENTS="main universe"
+
+# builder defaults
+DEFGROUPS="admin,adm,dialout,cdrom,floppy,audio,dip,video"
+STAMP=$(date +%Y%m%d%H%M)
+BUILDDIR=$(mktemp -d)
+MOUNTPOINT="${BUILDDIR}/tmpmount"
+IMAGENAME="${BUILDDIR}/qemu-armel-$STAMP.img"
+QEMUPID="${BUILDDIR}/qemu.pid"
+QEMUFIFO="${BUILDDIR}/qemufifo"
+DBPID="${BUILDDIR}/debootstrap.pid"
+DBFIFO="${BUILDDIR}/dbfifo"
+DIR="$(pwd)"
+
+# general defaults
+LOG="$BUILDDIR/$(basename $0)-$STAMP.log"
+KERNEL="http://people.ubuntu.com/~ogra/arm/qemu/kernel/vmlinuz-2.6.28-versatile"
+
+DEBOOTSTRAP_MIN_VER="1.0.10ubuntu3"
+DBSV="$(debootstrap --version|cut -d " " -f2)"
+
+
+# we need root
+if [ $(id -u) != 0 ];then
+    echo "must be run as root"
+    exit 2
+fi
+
+if [ ! $(which qemu-system-arm) ];then
+    echo "qemu not installed, please use:"
+    echo "sudo apt-get install qemu"
+    echo "to install the qemu package !"
+    exit 1
+fi
+
+if [ ! $(which debootstrap) ];then
+    echo "debootstrap not installed, please use:"
+    echo "sudo apt-get install debootstrap"
+    echo "to install the debootstrap package !"
+    exit 1
+fi
+
+if $(dpkg --compare-versions $DBSV lt $DEBOOTSTRAP_MIN_VER);then
+    echo "Wrong debootstrap version detected, please install at least"
+    echo "debootstrap version $DEBOOTSTRAP_MIN_VER to make this script work"
+    echo "You can download it from:"
+    echo "http://archive.ubuntu.com/ubuntu/pool/main/d/debootstrap/debootstrap_${DEBOOTSTRAP_MIN_VER}_all.deb"
+    echo "and install the downloaded package with:"
+    echo "dpkg -i <download path>/debootstrap_${DEBOOTSTRAP_MIN_VER}_all.deb"
+    exit 1
+fi
+
+# parse commandline options
+while [ ! -z "$1" ]; do
+    case $1 in
+        -h|--help)
+            usage
+            ;;
+        -f|--fqdn)
+            checkparm $2
+            FQDN="$2"
+            ;;
+        -l|--login)
+            checkparm $2
+            NEWUSER="$2"
+            ;;
+        -p|--password)
+            checkparm $2
+            PASSWD="$2"
+            ;;
+        -n|--fullname)
+            checkparm $2
+            FULLNAME="$2"
+            ;;
+        -s|--seed)
+            checkparm $2
+            SELECTION="$(echo $2|tr ',' ' ')"
+            ;;
+        -i|--imagesize)
+            checkparm $2
+            if [ ! "$(echo $2|grep 'M')" ] && \
+                [ ! "$(echo $2|grep 'G')" ];then
+                echo "E: Size needs to be in gigabyte or megabyte"
+                usage
+            fi
+            IMAGESIZE="$2"
+            ;;
+        -m|--mirror)
+            checkparm $2
+            MIRROR="$2"
+            ;;
+        -c|--components)
+            checkparm $2
+            COMPONENTS="$(echo $2|tr ',' ' ')"
+            ;;
+        -t|--timezone)
+            checkparm $2
+            if [ ! "$(echo $2|grep '/')" ];then
+                echo "E: Need a proper timezone"
+                usage
+            fi
+            TZONE="$2"
+            ;;
+        --kblayout)
+            checkparm $2
+            XKBL="$2"
+            ;;
+        --kbmodel)
+            checkparm $2
+            XKBM="$2"
+            ;;
+        --kbvariant)
+            checkparm $2
+            XKBV="$2"
+            ;;
+        --kboptions)
+            checkparm $2
+            XKBO="$2"
+            ;;
+        -x|--locale)
+            checkparm $2
+            if [ ! "$(echo $2|grep '_')" ];then
+                echo "E: Need a proper locale"
+                usage
+            fi
+            NEWLOCALE="$2"
+            ;;
+        --keepimage)
+            KEEPIMAGE=1
+            ;;
+        --notarball)
+            NOTARBALL=1
+            KEEPIMAGE=1
+            ;;
+        -q|--quiet)
+            QUIET=1
+            ;;
+    esac
+    shift
+done
+
+# process vars
+AREA=${TZONE%%/*}
+ZONE=${TZONE#*/}
+
+# check if we have at least hostname, login and password
+
+if [ ! "${FQDN}" ] || [ ! "${NEWUSER}" ] || [ ! "${PASSWD}" ];then
+    usage
+fi
+
+create_raw_image
+mount_image
+run_first_stage
+
+# basic fstab
+echo "proc /proc proc defaults 0 0" >$MOUNTPOINT/etc/fstab
+
+# set up basic networking
+INTERFACES="$MOUNTPOINT/etc/network/interfaces"
+echo "auto lo" >$INTERFACES
+echo "iface lo inet loopback" >>$INTERFACES
+
+# set up resolver
+HOSTS="$MOUNTPOINT/etc/hosts"
+echo "127.0.0.1 localhost" >$HOSTS
+echo "127.0.1.1 ${FQDN}" >>$HOSTS
+
+echo "${FQDN}" >$MOUNTPOINT/etc/hostname
+
+PW=$(perl -e 'print crypt($ARGV[0], "qemuonarm")', $PASSWD)
+
+# write installer script to image
+cat > $BUILDDIR/installer <<EOF
+#!/bin/bash
+set -e
+
+export PATH
+export LC_ALL=C
+
+/debootstrap/debootstrap --second-stage
+
+echo "I: Starting basic services in VM"
+/etc/init.d/mountkernfs.sh start || true
+/etc/init.d/hostname.sh start || true
+mount -o remount -a || true
+/etc/init.d/loopback start || true
+/etc/init.d/udev start || true
+/etc/init.d/mountdevsubfs.sh start || true
+/etc/init.d/procps start || true
+/etc/init.d/mtab.sh start || true
+/etc/init.d/mountall.sh start || true
+/etc/init.d/udev-finish start || true
+/etc/init.d/networking start || true
+
+echo "deb ${MIRROR} jaunty ${COMPONENTS}" >/etc/apt/sources.list
+
+ifconfig eth0 up
+dhclient eth0
+
+locale-gen --no-purge en || true
+locale-gen --no-purge ${NEWLOCALE} || true
+echo LANG=${NEWLOCALE} >>/etc/environment
+
+sed -i -e 's/^XKBMODEL=.*\$/XKBMODEL="${XKBM}"/' /etc/default/console-setup || true
+sed -i -e 's/^XKBLAYOUT=.*\$/XKBLAYOUT="${XKBL}"/' /etc/default/console-setup || true
+sed -i -e 's/^XKBVARIANT=.*\$/XKBVARIANT="${XKBV}"/' /etc/default/console-setup || true
+sed -i -e 's/^XKBOPTIONS=.*\$/XKBOPTIONS="${XKBO}"/' /etc/default/console-setup || true
+
+echo ${AREA}/${ZONE} > /etc/timezone
+cp -f /usr/share/zoneinfo/${AREA}/${ZONE} /etc/localtime || true
+
+apt-get update
+apt-get clean
+apt-get -y install ${SELECTION}
+
+apt-get clean
+
+groupadd admin || true
+useradd -G ${DEFGROUPS} -s /bin/bash -m -p ${PW} -c "${FULLNAME}" ${NEWUSER} || true
+echo '%admin  ALL=(ALL) ALL' >>/etc/sudoers
+
+passwd -l root || true
+
+/etc/init.d/networking stop || true
+/etc/init.d/udev-finish stop || true
+/etc/init.d/mountall.sh stop || true
+/etc/init.d/mtab.sh stop || true
+/etc/init.d/procps stop || true
+/etc/init.d/mountdevsubfs.sh stop || true
+/etc/init.d/udev stop || true
+/etc/init.d/loopback stop || true
+/etc/init.d/hostname.sh stop || true
+/etc/init.d/mountkernfs.sh stop || true
+
+rm /bin/installer && reboot -fp
+
+EOF
+
+mv $BUILDDIR/installer $MOUNTPOINT/bin/ >>$LOG 2>&1
+chmod +x $MOUNTPOINT/bin/installer >>$LOG 2>&1
+
+# make sure we're not mounted
+umount $MOUNTPOINT >>$LOG 2>&1
+
+# run vm for second stage
+run_vm
+
+# build a rootfs tarball
+if [ ! "$NOTARBALL" ];then
+    roll_tarball
+fi
+
+# save a qemu image
+if [ "$KEEPIMAGE" ];then
+    save_qemu_img
+fi
+
+# clean up and save a log
+cleanup
