@@ -5,11 +5,11 @@ You will need to install on your Ubuntu machine:
 
   The following example will create a tarball of xubuntu-desktop based image for your target device (i.e. a beagleboard):
 
-  sudo ./build-arm-rootfs --fqdn beagleboard --login ubuntu --password temppwd --imagesize 2G --seed xubuntu-desktop
+  sudo ./rootstock --fqdn beagleboard --login ubuntu --password temppwd --imagesize 2G --seed xubuntu-desktop
 
   The following example will create a tarball of ubuntu-desktop based image for your target device:
 
-  sudo ./build-arm-rootfs --fqdn ubuntu --login ubuntu --password ubuntu --imagesize 3G --seed ubuntu-desktop
+  sudo ./rootstock --fqdn ubuntu --login ubuntu --password ubuntu --imagesize 3G --seed ubuntu-desktop
 
   The options --fqdn (or -f), --login (or -l) and --password (-p) are required for the initial setup. Calling the script with --help shows you all the additional options that can be used to change the setup of the created rootfs.
 
@@ -19,7 +19,7 @@ You will need to install on your Ubuntu machine:
 
    In case you want to just create an image for usage with qemu instead of building a rootfs tarball, the build-armel-rootfs script has the --notarball option, just call it like below and you will get a qemu image for usage with qemu-system-arm
 
-   sudo ./build-arm-rootfs --fqdn qemu-test --login qemu --password qemupwd --notarball
+   sudo ./rootstock --fqdn qemu-test --login qemu --password qemupwd --notarball
 
    == Settings ==
 
