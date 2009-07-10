@@ -99,6 +99,9 @@ additional options:
 -c --components <csv list>
     Archive components
     (default: main,universe)
+-d --dist (jaunty or karmic)
+    Specify Release to build
+    (default: karmic)
 -t --timezone <timezone>
     Timezone for the system (i.e. Europe/Berlin)
     (default: buildsystem timezone)
@@ -440,6 +443,10 @@ while [ ! -z "$1" ]; do
         --serial)
             SERIAL=1
             ;;
+        -d|--dist)
+            checkparm $2
+            DIST="$2"
+            ;;
         -q|--quiet)
             QUIET=1
             ;;
@@ -501,7 +508,7 @@ mount -o remount -a || true
 /etc/init.d/udev-finish start || true
 /etc/init.d/networking start || true
 
-echo "deb ${MIRROR} jaunty ${COMPONENTS}" >/etc/apt/sources.list
+echo "deb ${MIRROR} ${DIST} ${COMPONENTS}" >/etc/apt/sources.list
 
 ifconfig eth0 up
 dhclient eth0
