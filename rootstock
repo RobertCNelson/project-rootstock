@@ -499,7 +499,6 @@ echo "I: Starting basic services in VM"
 /etc/init.d/mountkernfs.sh start || true
 /etc/init.d/hostname.sh start || true
 mount -o remount -a || true
-/etc/init.d/loopback start || true
 /etc/init.d/udev start || true
 /etc/init.d/mountdevsubfs.sh start || true
 /etc/init.d/procps start || true
@@ -544,7 +543,6 @@ passwd -l root || true
 /etc/init.d/procps stop || true
 /etc/init.d/mountdevsubfs.sh stop || true
 /etc/init.d/udev stop || true
-/etc/init.d/loopback stop || true
 /etc/init.d/hostname.sh stop || true
 /etc/init.d/mountkernfs.sh stop || true
 
