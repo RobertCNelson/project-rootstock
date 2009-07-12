@@ -231,6 +231,7 @@ setup_serial()
     [ $QUIET ] || echo "I: Setting up serial tty in image"
 
     if [ "$DIST" = "jaunty" ];then
+	mkdir -p $MOUNTPOINT/etc/event.d/
         cat > $MOUNTPOINT/etc/event.d/ttyS0 <<EOF
 start on runlevel 2
 start on runlevel 3
@@ -245,6 +246,7 @@ respawn
 exec /sbin/getty 115200 ttyS0
 EOF
     else
+	mkdir -p $MOUNTPOINT/etc/init/
         cat > $MOUNTPOINT/etc/init/ttyS0.conf <<EOF
 start on stopped rc RUNLEVEL=[2345]
 stop on runlevel [!2345]
