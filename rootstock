@@ -514,7 +514,7 @@ echo "deb ${MIRROR} ${DIST} ${COMPONENTS}" >/etc/apt/sources.list
 ifconfig eth0 up
 dhclient eth0
 
-locale-gen --no-purge en || true
+locale-gen --no-purge en_GB.UTF-8 || true
 locale-gen --no-purge ${NEWLOCALE} || true
 echo LANG=${NEWLOCALE} >>/etc/environment
 
