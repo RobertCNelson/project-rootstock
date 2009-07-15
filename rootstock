@@ -199,7 +199,12 @@ run_vm()
     mkfifo $QEMUFIFO
 
     [ $QUIET ] || echo "I: Switching to Virtual Machine for second stage processing"
-    QEMUOPTS="-M versatilepb -kernel ${BUILDDIR}/qemu-vmlinuz -no-reboot -nographic -pidfile ${QEMUPID} -hda ${IMAGENAME} -m 256M"
+    if [ "$DIST" = "karmic" ];then
+        VMCPU="-cpu cortex-a8"
+    else
+        VMCPU=""
+    fi
+    QEMUOPTS="-M versatilepb ${VMCPU} -kernel ${BUILDDIR}/qemu-vmlinuz -no-reboot -nographic -pidfile ${QEMUPID} -hda ${IMAGENAME} -m 256M"
     APPEND="console=ttyAMA0,115200n8 root=/dev/sda rw init=/bin/installer quiet"
 
     qemu-system-arm $QEMUOPTS -append "${APPEND}" >$QEMUFIFO 2>&1 &
@@ -324,7 +329,6 @@ DIR="$(pwd)"
 
 # general defaults
 LOG="$BUILDDIR/$(basename $0)-$STAMP.log"
-KERNEL="http://people.ubuntu.com/~ogra/arm/qemu/kernel/vmlinuz-2.6.28-versatile"
 
 DEBOOTSTRAP_MIN_VER="1.0.10ubuntu3"
 DBSV="$(debootstrap --version|cut -d " " -f2)"
@@ -455,6 +459,13 @@ while [ ! -z "$1" ]; do
     esac
     shift
 done
+
+# release kernels
+if [ "$DIST" = "karmic" ];then
+    KERNEL="http://people.canonical.com/~ogra//arm/qemu/vmlinuz-2.6.31-rc3versatile1-cortex-a8"
+else
+    KERNEL="http://people.canonical.com/~ogra//arm/qemu/kernel/vmlinuz-2.6.28-versatile"
+fi
 
 # process vars
 AREA=${TZONE%%/*}
