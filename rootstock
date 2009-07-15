@@ -547,6 +547,8 @@ passwd -l root || true
 /etc/init.d/udev stop || true
 /etc/init.d/hostname.sh stop || true
 /etc/init.d/mountkernfs.sh stop || true
+/etc/init.d/umountfs stop || true
+/etc/init.d/umountroot stop || true
 
 rm /bin/installer && reboot -fp
 
