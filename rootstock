@@ -63,6 +63,13 @@ cleanup()
           umount $MOUNTPOINT
       fi
 
+      # unmount tmpfs for swap
+      if [ -n "$TMPMOUNT" ];then
+          if $(mount |grep -q $TMPMOUNT);then
+              umount $TMPMOUNT
+          fi
+      fi
+
       # wipe builddir
       rm -rf $BUILDDIR
       echo "I: done ..."
@@ -110,6 +117,11 @@ additional options:
     (default: buildsystem locale)
 --serial
     Create a serial tty inside the rootfs for login
+--noswap
+    Do not create a swapfile in tmpfs for the virtual machine
+--swapsize <size in megabyte>
+    Use a different size for the swapfile used by the virtual machine
+    (default: 256M)
 
 keyboard options:
 --kblayout <layout>
@@ -204,7 +216,10 @@ run_vm()
     else
         VMCPU=""
     fi
-    QEMUOPTS="-M versatilepb ${VMCPU} -kernel ${BUILDDIR}/qemu-vmlinuz -no-reboot -nographic -pidfile ${QEMUPID} -hda ${IMAGENAME} -m 256M"
+    if [ -n "$SWAPFILE" ];then
+        SWAPDEV="-hdb $SWAPFILE"
+    fi
+    QEMUOPTS="-M versatilepb ${VMCPU} -kernel ${BUILDDIR}/qemu-vmlinuz -no-reboot -nographic -pidfile ${QEMUPID} -hda ${IMAGENAME} ${SWAPDEV} -m 256M"
     APPEND="console=ttyAMA0,115200n8 root=/dev/sda rw init=/bin/installer quiet"
 
     qemu-system-arm $QEMUOPTS -append "${APPEND}" >$QEMUFIFO 2>&1 &
@@ -260,6 +275,18 @@ respawn
 exec /sbin/getty 115200 ttyS0
 EOF
     fi
+}
+
+use_swap()
+{
+    TMPMOUNT=$BUILDDIR/tmpfs
+    SWAPFILE=$TMPMOUNT/swapfile
+    [ $QUIET ] || echo "I: Creating swapfile in tmpfs for VM"
+    mkdir -p $TMPMOUNT >>$LOG 2>&1
+    mount -t tmpfs -o size=$(($SWAPSIZE*1048576)) tmpfs $TMPMOUNT >>$LOG 2>&1
+    dd if=/dev/zero of=$SWAPFILE bs=1048576 count=$(($SWAPSIZE-1)) >>$LOG 2>&1
+    mkswap -f $SWAPFILE >>$LOG 2>&1
+    SWAPCMD="swapon /dev/sdb"
 }
 
 roll_tarball()
@@ -326,6 +353,7 @@ QEMUFIFO="${BUILDDIR}/qemufifo"
 DBPID="${BUILDDIR}/debootstrap.pid"
 DBFIFO="${BUILDDIR}/dbfifo"
 DIR="$(pwd)"
+SWAPSIZE=256
 
 # general defaults
 LOG="$BUILDDIR/$(basename $0)-$STAMP.log"
@@ -449,6 +477,13 @@ while [ ! -z "$1" ]; do
         --serial)
             SERIAL=1
             ;;
+        --noswap)
+            NOSWAP=1
+            ;;
+        --swapsize)
+            checkparm $2
+            SWAPSIZE="$2"
+            ;;
         -d|--dist)
             checkparm $2
             DIST="$2"
@@ -507,6 +542,8 @@ export PATH
 export LC_ALL=C
 
 /debootstrap/debootstrap --second-stage
+
+${SWAPCMD}
 
 echo "I: Starting basic services in VM"
 /etc/init.d/mountkernfs.sh start || true
@@ -567,6 +604,10 @@ EOF
 
 if [ "$SERIAL" ];then
     setup_serial
+fi
+
+if [ ! "$NOSWAP" ];then
+    use_swap
 fi
 
 mv $BUILDDIR/installer $MOUNTPOINT/bin/ >>$LOG 2>&1
