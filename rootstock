@@ -284,7 +284,7 @@ use_swap()
     [ $QUIET ] || echo "I: Creating swapfile in tmpfs for VM"
     mkdir -p $TMPMOUNT >>$LOG 2>&1
     mount -t tmpfs -o size=$(($SWAPSIZE*1048576)) tmpfs $TMPMOUNT >>$LOG 2>&1
-    dd if=/dev/zero of=$SWAPFILE bs=1048576 count=$(($SWAPSIZE-1)) >>$LOG 2>&1
+    dd if=/dev/zero of=$SWAPFILE bs=1048576 count=$(($SWAPSIZE-8)) >>$LOG 2>&1
     mkswap -f $SWAPFILE >>$LOG 2>&1
     SWAPCMD="swapon /dev/sdb"
 }
