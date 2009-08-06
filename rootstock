@@ -115,7 +115,7 @@ additional options:
 -x --locale <locale.encoding>
     Language used in the installed system (i.e. en_US.UTF-8)
     (default: buildsystem locale)
---serial
+--serial <ttySx>
     Create a serial tty inside the rootfs for login
 --noswap
     Do not create a swapfile in tmpfs for the virtual machine
@@ -252,7 +252,7 @@ setup_serial()
 
     if [ "$DIST" = "jaunty" ];then
         test -d $MOUNTPOINT/etc/event.d/|| mkdir -p $MOUNTPOINT/etc/event.d/
-        cat > $MOUNTPOINT/etc/event.d/ttyS0 <<EOF
+        cat > $MOUNTPOINT/etc/event.d/$SERIAL_TTYS <<EOF
 start on runlevel 2
 start on runlevel 3
 start on runlevel 4
@@ -263,16 +263,16 @@ stop on runlevel 1
 stop on runlevel 6
 
 respawn
-exec /sbin/getty 115200 ttyS0
+exec /sbin/getty 115200 $SERIAL_TTYS
 EOF
     else
         test -d $MOUNTPOINT/etc/init/|| mkdir -p $MOUNTPOINT/etc/init/
-        cat > $MOUNTPOINT/etc/init/ttyS0.conf <<EOF
+        cat > $MOUNTPOINT/etc/init/$SERIAL_TTYS.conf <<EOF
 start on stopped rc RUNLEVEL=[2345]
 stop on runlevel [!2345]
 
 respawn
-exec /sbin/getty 115200 ttyS0
+exec /sbin/getty 115200 $SERIAL_TTYS
 EOF
     fi
 }
@@ -475,6 +475,12 @@ while [ ! -z "$1" ]; do
             KEEPIMAGE=1
             ;;
         --serial)
+            checkparm $2
+            if [ ! "$(echo $2)" ];then
+                SERIAL_TTYS="ttyS0"
+            else
+                SERIAL_TTYS="$2"
+            fi
             SERIAL=1
             ;;
         --noswap)
