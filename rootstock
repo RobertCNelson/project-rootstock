@@ -306,7 +306,7 @@ setup_kernel_image()
     cp $DIR/dl/$KERNEL_IMG  $MOUNTPOINT/tmp
 
     echo "I: $KERNEL_IMG download complete"
-    KERNEL_IMAGE_CMD="dpkg --force-all -i ./tmp/$KERNEL_IMG"
+    KERNEL_IMAGE_CMD="dpkg -i ./tmp/$KERNEL_IMG"
 }
 
 extract_kernel_image()
@@ -606,8 +606,6 @@ echo "deb ${MIRROR} ${DIST} ${COMPONENTS}" >/etc/apt/sources.list
 ifconfig eth0 up
 dhclient eth0
 
-${KERNEL_IMAGE_CMD}
-
 locale-gen --no-purge en_GB.UTF-8 || true
 locale-gen --no-purge ${NEWLOCALE} || true
 echo LANG=${NEWLOCALE} >>/etc/environment
@@ -625,6 +623,8 @@ apt-get clean
 apt-get -y install ${SELECTION}
 
 apt-get clean
+
+${KERNEL_IMAGE_CMD}
 
 groupadd admin || true
 useradd -G ${DEFGROUPS} -s /bin/bash -m -p ${PW} -c "${FULLNAME}" ${NEWUSER} || true
