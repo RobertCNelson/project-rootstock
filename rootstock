@@ -146,6 +146,10 @@ output options:
 extra parameters:
 -q --quiet
     Quiet operation, only write to log
+
+advanced options:
+--kernel-image
+    install board specfic kernel image inside rootfs
 '
     exit 0
 }
@@ -287,6 +291,32 @@ use_swap()
     dd if=/dev/zero of=$SWAPFILE bs=1048576 count=$(($SWAPSIZE-8)) >>$LOG 2>&1
     mkswap -f $SWAPFILE >>$LOG 2>&1
     SWAPCMD="swapon /dev/sdb"
+}
+
+setup_kernel_image()
+{
+    [ $QUIET ] || echo "I: Downloading kernel image (deb) from external site"
+
+    mkdir -p $DIR/dl/
+    wget --directory-prefix=$DIR/dl/ --quiet $KERNEL_IMG
+    
+    KERNEL_IMG=${KERNEL_IMG##*/}
+
+    test -d $MOUNTPOINT/tmp/|| mkdir -p $MOUNTPOINT/tmp/
+    cp $DIR/dl/$KERNEL_IMG  $MOUNTPOINT/tmp
+
+    echo "I: $KERNEL_IMG download complete"
+    KERNEL_IMAGE_CMD="dpkg --force-all -i ./tmp/$KERNEL_IMG"
+}
+
+extract_kernel_image()
+{
+    [ $QUIET ] || echo "I: Extracting vmlinuz from *.deb"
+    mkdir -p $DIR/dl/tmp/
+    dpkg -x $DIR/dl/$KERNEL_IMG $DIR/dl/tmp/
+    cp $DIR/dl/tmp/boot/vmlinuz-* $DIR
+    rm -rfd $DIR/dl/
+    echo "I: vmlinuz ready for (mkimage/etc) tool"
 }
 
 roll_tarball()
@@ -497,6 +527,10 @@ while [ ! -z "$1" ]; do
         -q|--quiet)
             QUIET=1
             ;;
+        --kernel-image)
+            KERNEL_IMAGE=1
+            KERNEL_IMG="$2"
+            ;;
     esac
     shift
 done
@@ -539,6 +573,10 @@ echo "${FQDN}" >$MOUNTPOINT/etc/hostname
 
 PW=$(perl -e 'print crypt($ARGV[0], "qemuonarm")', $PASSWD)
 
+if [ "$KERNEL_IMAGE" ];then
+    setup_kernel_image
+fi
+
 # write installer script to image
 cat > $BUILDDIR/installer <<EOF
 #!/bin/bash
@@ -567,6 +605,8 @@ echo "deb ${MIRROR} ${DIST} ${COMPONENTS}" >/etc/apt/sources.list
 
 ifconfig eth0 up
 dhclient eth0
+
+${KERNEL_IMAGE_CMD}
 
 locale-gen --no-purge en_GB.UTF-8 || true
 locale-gen --no-purge ${NEWLOCALE} || true
@@ -633,6 +673,11 @@ fi
 # save a qemu image
 if [ "$KEEPIMAGE" ];then
     save_qemu_img
+fi
+
+# create boot image
+if [ "$KERNEL_IMAGE" ];then
+    extract_kernel_image
 fi
 
 # clean up and save a log
