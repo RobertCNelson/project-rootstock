@@ -302,12 +302,12 @@ setup_kernel_image()
     
     KERNEL_IMG=${KERNEL_IMG##*/}
 
-    test -d $MOUNTPOINT/tmp/|| mkdir -p $MOUNTPOINT/tmp/
-    cp $DIR/dl/$KERNEL_IMG  $MOUNTPOINT/tmp
+    test -d $MOUNTPOINT/var/|| mkdir -p $MOUNTPOINT/var/
+    cp $DIR/dl/$KERNEL_IMG  $MOUNTPOINT/var
 
     echo "I: $KERNEL_IMG download complete"
     #This will fail, have user install from /tmp after first boot.
-    #KERNEL_IMAGE_CMD="dpkg -i /tmp/$KERNEL_IMG"
+    #KERNEL_IMAGE_CMD="dpkg -i /var/$KERNEL_IMG"
 }
 
 extract_kernel_image()
