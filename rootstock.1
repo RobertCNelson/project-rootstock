@@ -78,9 +78,10 @@ Timezone for the system (i.e. Europe/Berlin)
 Language used in the installed system (i.e. en_US.UTF\-8)
 (default: buildsystem locale)
 .PP
-\fB\-\-serial\fR
+\fB\-\-serial\fR <devicename>
 .IP
-Create a serial tty inside the image for serial consoles
+Create a serial tty of <devicename> inside the image for serial consoles
+(default device: ttyS0)
 .PP
 keyboard options:
 .PP
@@ -119,6 +120,12 @@ extra parameters:
 \fB\-q\fR \fB\-\-quiet\fR
 .IP
 Quiet operation, only write to log
+.PP
+advanced options:
+.PP
+\fB\-\-kernel-image\fR
+.IP
+Install board specfic kernel image from .deb package inside rootfs
 .PP
 .SH "SEE ALSO"
 The full documentation for

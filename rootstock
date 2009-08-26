@@ -115,8 +115,8 @@ additional options:
 -x --locale <locale.encoding>
     Language used in the installed system (i.e. en_US.UTF-8)
     (default: buildsystem locale)
---serial <ttySx>
-    Create a serial tty inside the rootfs for login
+--serial <devicename>
+    Create a serial tty of <devicename> inside the rootfs for login (i.e. ttyS0)
 --noswap
     Do not create a swapfile in tmpfs for the virtual machine
 --swapsize <size in megabyte>
