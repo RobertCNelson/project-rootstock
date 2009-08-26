@@ -115,7 +115,7 @@ additional options:
 -x --locale <locale.encoding>
     Language used in the installed system (i.e. en_US.UTF-8)
     (default: buildsystem locale)
---serial
+--serial <ttySx>
     Create a serial tty inside the rootfs for login
 --noswap
     Do not create a swapfile in tmpfs for the virtual machine
@@ -146,6 +146,10 @@ output options:
 extra parameters:
 -q --quiet
     Quiet operation, only write to log
+
+advanced options:
+--kernel-image
+    install board specfic kernel image inside rootfs
 '
     exit 0
 }
@@ -252,7 +256,7 @@ setup_serial()
 
     if [ "$DIST" = "jaunty" ];then
         test -d $MOUNTPOINT/etc/event.d/|| mkdir -p $MOUNTPOINT/etc/event.d/
-        cat > $MOUNTPOINT/etc/event.d/ttyS0 <<EOF
+        cat > $MOUNTPOINT/etc/event.d/$SERIAL_TTYS <<EOF
 start on runlevel 2
 start on runlevel 3
 start on runlevel 4
@@ -263,16 +267,16 @@ stop on runlevel 1
 stop on runlevel 6
 
 respawn
-exec /sbin/getty 115200 ttyS0
+exec /sbin/getty 115200 $SERIAL_TTYS
 EOF
     else
         test -d $MOUNTPOINT/etc/init/|| mkdir -p $MOUNTPOINT/etc/init/
-        cat > $MOUNTPOINT/etc/init/ttyS0.conf <<EOF
+        cat > $MOUNTPOINT/etc/init/$SERIAL_TTYS.conf <<EOF
 start on stopped rc RUNLEVEL=[2345]
 stop on runlevel [!2345]
 
 respawn
-exec /sbin/getty 115200 ttyS0
+exec /sbin/getty 115200 $SERIAL_TTYS
 EOF
     fi
 }
@@ -287,6 +291,33 @@ use_swap()
     dd if=/dev/zero of=$SWAPFILE bs=1048576 count=$(($SWAPSIZE-8)) >>$LOG 2>&1
     mkswap -f $SWAPFILE >>$LOG 2>&1
     SWAPCMD="swapon /dev/sdb"
+}
+
+setup_kernel_image()
+{
+    [ $QUIET ] || echo "I: Downloading kernel image (deb) from external site"
+
+    mkdir -p $DIR/dl/
+    wget --directory-prefix=$DIR/dl/ --quiet $KERNEL_IMG
+    
+    KERNEL_IMG=${KERNEL_IMG##*/}
+
+    test -d $MOUNTPOINT/tmp/|| mkdir -p $MOUNTPOINT/tmp/
+    cp $DIR/dl/$KERNEL_IMG  $MOUNTPOINT/tmp
+
+    echo "I: $KERNEL_IMG download complete"
+    #Hack dpkg -i fails, no postinstall script is run anyways, so lets just extract it.
+    KERNEL_IMAGE_CMD="dpkg -x /tmp/$KERNEL_IMG /"
+}
+
+extract_kernel_image()
+{
+    [ $QUIET ] || echo "I: Extracting vmlinuz from *.deb"
+    mkdir -p $DIR/dl/tmp/
+    dpkg -x $DIR/dl/$KERNEL_IMG $DIR/dl/tmp/
+    cp $DIR/dl/tmp/boot/vmlinuz-* $DIR
+    rm -rfd $DIR/dl/
+    echo "I: vmlinuz ready for (mkimage/etc) tool"
 }
 
 roll_tarball()
@@ -475,6 +506,12 @@ while [ ! -z "$1" ]; do
             KEEPIMAGE=1
             ;;
         --serial)
+            checkparm $2
+            if [ ! "$(echo $2)" ];then
+                SERIAL_TTYS="ttyS0"
+            else
+                SERIAL_TTYS="$2"
+            fi
             SERIAL=1
             ;;
         --noswap)
@@ -490,6 +527,10 @@ while [ ! -z "$1" ]; do
             ;;
         -q|--quiet)
             QUIET=1
+            ;;
+        --kernel-image)
+            KERNEL_IMAGE=1
+            KERNEL_IMG="$2"
             ;;
     esac
     shift
@@ -532,6 +573,10 @@ echo "127.0.1.1 ${FQDN}" >>$HOSTS
 echo "${FQDN}" >$MOUNTPOINT/etc/hostname
 
 PW=$(perl -e 'print crypt($ARGV[0], "qemuonarm")', $PASSWD)
+
+if [ "$KERNEL_IMAGE" ];then
+    setup_kernel_image
+fi
 
 # write installer script to image
 cat > $BUILDDIR/installer <<EOF
@@ -580,6 +625,8 @@ apt-get -y install ${SELECTION}
 
 apt-get clean
 
+${KERNEL_IMAGE_CMD}
+
 groupadd admin || true
 useradd -G ${DEFGROUPS} -s /bin/bash -m -p ${PW} -c "${FULLNAME}" ${NEWUSER} || true
 echo '%admin  ALL=(ALL) ALL' >>/etc/sudoers
@@ -627,6 +674,11 @@ fi
 # save a qemu image
 if [ "$KEEPIMAGE" ];then
     save_qemu_img
+fi
+
+# create boot image
+if [ "$KERNEL_IMAGE" ];then
+    extract_kernel_image
 fi
 
 # clean up and save a log
