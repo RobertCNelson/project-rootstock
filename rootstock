@@ -351,7 +351,7 @@ FULLNAME="Ubuntu System User"
 PASSWD=""
 
 # target package selection
-SELECTION="ubuntu-minimal" # change here to install ubuntu-desktop
+SELECTION="" # change here to install ubuntu-desktop
 IMAGESIZE="1G" # make this 3G for an ubuntu-desktop install
 
 # default to the build system locale
@@ -621,7 +621,7 @@ cp -f /usr/share/zoneinfo/${AREA}/${ZONE} /etc/localtime || true
 
 apt-get update
 apt-get clean
-apt-get -y install ${SELECTION}
+[ -z "${SELECTION}" ] || apt-get -y install ${SELECTION}
 
 apt-get clean
 
