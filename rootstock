@@ -369,7 +369,7 @@ XKBO=$(grep XKBOPTIONS ${KBDATA}|tr -d '"'|cut -d '=' -f2)
 TZONE=$(cat /etc/timezone)
 
 # target apt setup
-DIST="karmic"
+DIST=$(lsb_release -cs)
 MIRROR="http://ports.ubuntu.com/ubuntu-ports"
 COMPONENTS="main universe"
 
