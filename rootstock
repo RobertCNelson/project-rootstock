@@ -536,6 +536,11 @@ while [ ! -z "$1" ]; do
     shift
 done
 
+if [ ! -f /usr/share/debootstrap/scripts/$DIST ];then
+  echo "Your debootstrap installation does not seem to have support for the $DIST distribution"
+  exit 5
+fi
+
 # release kernels
 if [ "$DIST" = "karmic" ];then
     KERNEL="http://people.canonical.com/~ogra//arm/qemu/vmlinuz-2.6.31-rc3versatile1-cortex-a8"
