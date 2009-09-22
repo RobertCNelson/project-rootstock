@@ -190,7 +190,13 @@ run_first_stage()
 
     mkfifo $DBFIFO
 
-    LANG=C debootstrap --foreign --arch=armel $DIST $MOUNTPOINT $MIRROR >$DBFIFO 2>&1 &
+    if [ [ ! $(which qemu-arm-static) ];then
+        LANG=C debootstrap --foreign --arch=armel $DIST $MOUNTPOINT $MIRROR >$DBFIFO 2>&1 &
+        SECOND_STAGE="/debootstrap/debootstrap --second-stage"
+    else
+        LANG=C build-arm-chroot $DIST $MOUNTPOINT $MIRROR >$DBFIFO 2>&1 &
+        SECOND_STAGE=""
+    fi
     echo $! > $DBPID
 
     while read line; do
@@ -591,7 +597,7 @@ set -e
 export PATH
 export LC_ALL=C
 
-/debootstrap/debootstrap --second-stage
+${SECOND_STAGE}
 
 ${SWAPCMD}
 
