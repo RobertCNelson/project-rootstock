@@ -572,7 +572,10 @@ run_first_stage
 echo "proc /proc proc defaults 0 0" >$MOUNTPOINT/etc/fstab
 
 # set up basic networking
-INTERFACES="$MOUNTPOINT/etc/network/interfaces"
+NETWORKDIR="$MOUNTPOINT/etc/network"
+INTERFACES="$NETWORKDIR/interfaces"
+mkdir -p $NETWORKDIR
+
 echo "auto lo" >$INTERFACES
 echo "iface lo inet loopback" >>$INTERFACES
 
