@@ -190,7 +190,7 @@ run_first_stage()
 
     mkfifo $DBFIFO
 
-    if [ [ ! $(which qemu-arm-static) ];then
+    if [ ! $(which qemu-arm-static) ];then
         LANG=C debootstrap --foreign --arch=armel $DIST $MOUNTPOINT $MIRROR >$DBFIFO 2>&1 &
         SECOND_STAGE="/debootstrap/debootstrap --second-stage"
     else
