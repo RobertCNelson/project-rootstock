@@ -605,7 +605,7 @@ mount -t devpts devpts /dev/pts
 
 udevd --daemon &
 
-hostname -b -F /etc/hostname
+hostname -F /etc/hostname
 
 dpkg-divert --add --local --divert /usr/sbin/invoke-rc.d.rootstock --rename /usr/sbin/invoke-rc.d
 cp /bin/true /usr/sbin/invoke-rc.d
@@ -654,9 +654,7 @@ passwd -l root || true
 rm -f /usr/sbin/invoke-rc.d
 dpkg-divert --remove --rename /usr/sbin/invoke-rc.d
 
-mount    -n -o remount,ro -t dummytype dummydev / 2>/dev/null \
-|| mount -n -o remount,ro              dummydev / 2>/dev/null \
-|| mount -n -o remount,ro                       / 2>/dev/null
+mount -n -o remount,ro -t ext2 /dev/sda / || true
 
 rm /bin/installer && reboot -fp
 
