@@ -597,6 +597,11 @@ cat > $BUILDDIR/installer <<EOF
 #!/bin/bash
 set -e
 
+export PATH
+export LC_ALL=C
+
+${SECOND_STAGE}
+
 echo "I: Starting basic services in VM"
 
 mount -t proc proc /proc
@@ -609,11 +614,6 @@ hostname -F /etc/hostname
 
 dpkg-divert --add --local --divert /usr/sbin/invoke-rc.d.rootstock --rename /usr/sbin/invoke-rc.d
 cp /bin/true /usr/sbin/invoke-rc.d
-
-export PATH
-export LC_ALL=C
-
-${SECOND_STAGE}
 
 ${SWAPCMD}
 
