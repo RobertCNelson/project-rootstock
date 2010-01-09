@@ -221,15 +221,15 @@ run_vm()
     mkfifo $QEMUFIFO
 
     [ $QUIET ] || echo "I: Switching to Virtual Machine for second stage processing"
-    if [ "$DIST" = "karmic" ];then
-        VMCPU="-cpu cortex-a8"
-    else
+    # jaunty requires v5, karmic v6 and VFP, lucid and later v7
+    VMCPU="cortex-a8"
+    if [ "$DIST" = "jaunty" ];then
         VMCPU=""
     fi
     if [ -n "$SWAPFILE" ];then
         SWAPDEV="-hdb $SWAPFILE"
     fi
-    QEMUOPTS="-M versatilepb ${VMCPU} -kernel ${BUILDDIR}/qemu-vmlinuz -no-reboot -nographic -pidfile ${QEMUPID} -hda ${IMAGENAME} ${SWAPDEV} -m 256M"
+    QEMUOPTS="-M versatilepb ${VMCPU:+-cpu $VMCPU} -kernel ${BUILDDIR}/qemu-vmlinuz -no-reboot -nographic -pidfile ${QEMUPID} -hda ${IMAGENAME} ${SWAPDEV} -m 256M"
     APPEND="console=ttyAMA0,115200n8 root=/dev/sda rw init=/bin/installer quiet"
 
     qemu-system-arm $QEMUOPTS -append "${APPEND}" >$QEMUFIFO 2>&1 &
