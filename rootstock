@@ -79,7 +79,8 @@ cleanup()
 usage()
 {
     echo "usage: $(basename $0) -f <hostname> -l <login name> -p <password> [option]"
-echo '
+cat <<EOF
+
 required options:
 -f --fqdn <hostname>
     Hostname to be used for the target system
@@ -108,7 +109,7 @@ additional options:
     (default: main,universe)
 -d --dist (jaunty or karmic)
     Specify Release to build
-    (default: karmic)
+    (default: `lsb_release -cs`)
 -t --timezone <timezone>
     Timezone for the system (i.e. Europe/Berlin)
     (default: buildsystem timezone)
@@ -150,7 +151,8 @@ extra parameters:
 advanced options:
 --kernel-image
     install board specfic kernel image inside rootfs
-'
+
+EOF
     exit 0
 }
 
