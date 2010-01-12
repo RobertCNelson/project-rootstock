@@ -675,8 +675,8 @@ rm /bin/installer && reboot -fp
 EOF
 
 # copy over user script
-if [ "USER_SCRIPT" ]; then
-    cp "$USER_SCRIPT" "$BUILDDIR/rootstock-user-script"
+if [ "$USER_SCRIPT" ]; then
+    cp "$USER_SCRIPT" "$MOUNTPOINT/rootstock-user-script"
 fi
 
 if [ "$SERIAL" ];then
