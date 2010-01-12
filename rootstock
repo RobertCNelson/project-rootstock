@@ -96,7 +96,6 @@ additional options:
     (default: "Ubuntu System User")
 -s --seed <csv list>
     List of packages to install (i.e. ubuntu-desktop)
-    (default: ubuntu-minimal)
 -i --imagesize <size>M/G
     Size of the target filesystem to be created (i.e. 500M)
     (default: 1G)
