@@ -97,7 +97,6 @@ additional options:
     (default: "Ubuntu System User")
 -s --seed <csv list>
     List of packages to install (i.e. ubuntu-desktop)
-    (default: ubuntu-minimal)
 -i --imagesize <size>M/G
     Size of the target filesystem to be created (i.e. 500M)
     (default: 1G)
@@ -116,6 +115,8 @@ additional options:
 -x --locale <locale.encoding>
     Language used in the installed system (i.e. en_US.UTF-8)
     (default: buildsystem locale)
+--script <filename>
+    Run this script at the end of the installation process
 --serial <devicename>
     Create a serial tty of <devicename> inside the rootfs for login (i.e. ttyS0)
 --noswap
@@ -381,6 +382,9 @@ DIST=$(lsb_release -cs)
 MIRROR="http://ports.ubuntu.com/ubuntu-ports"
 COMPONENTS="main universe"
 
+# user-specified script
+USER_SCRIPT=""
+
 # builder defaults
 DEFGROUPS="admin,adm,dialout,cdrom,floppy,audio,dip,video"
 STAMP=$(date +%Y%m%d%H%M)
@@ -512,6 +516,10 @@ while [ ! -z "$1" ]; do
         --notarball)
             NOTARBALL=1
             KEEPIMAGE=1
+            ;;
+        --script)
+            checkparm $2
+            USER_SCRIPT="$2"
             ;;
         --serial)
             checkparm $2
@@ -656,11 +664,21 @@ passwd -l root || true
 rm -f /usr/sbin/invoke-rc.d
 dpkg-divert --remove --rename /usr/sbin/invoke-rc.d
 
+if [ -x /rootstock-user-script ]; then
+    /rootstock-user-script
+    rm -f /rootstock-user-script
+fi
+
 mount -n -o remount,ro -t ext2 /dev/sda / || true
 
 rm /bin/installer && reboot -fp
 
 EOF
+
+# copy over user script
+if [ "$USER_SCRIPT" ]; then
+    cp "$USER_SCRIPT" "$MOUNTPOINT/rootstock-user-script"
+fi
 
 if [ "$SERIAL" ];then
     setup_serial
