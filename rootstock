@@ -323,6 +323,7 @@ setup_kernel_image()
 
 get_vm_kernel()
 {
+    # jaunty requires v5, karmic v6 and VFP, lucid and later v7
     KERNEL="http://people.canonical.com/~ogra/arm/qemu/vmlinuz-2.6.31-rc3versatile1-cortex-a8"
     if [ "$DIST" = "jaunty" ];then
         KERNEL="http://people.canonical.com/~ogra//arm/qemu/kernel/vmlinuz-2.6.28-versatile"
@@ -590,13 +591,6 @@ done
 if [ ! -f /usr/share/debootstrap/scripts/$DIST ];then
   echo "Your debootstrap installation does not seem to have support for the $DIST distribution"
   exit 5
-fi
-
-# release kernels
-# jaunty requires v5, karmic v6 and VFP, lucid and later v7
-KERNEL="http://people.canonical.com/~ogra/arm/qemu/vmlinuz-2.6.31-rc3versatile1-cortex-a8"
-if [ "$DIST" = "jaunty" ];then
-    KERNEL="http://people.canonical.com/~ogra//arm/qemu/kernel/vmlinuz-2.6.28-versatile"
 fi
 
 # process vars
