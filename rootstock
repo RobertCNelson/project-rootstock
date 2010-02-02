@@ -100,6 +100,8 @@ additional options:
 -i --imagesize <size>M/G
     Size of the target filesystem to be created (i.e. 500M)
     (default: 1G)
+-g --manifest <path to file>
+    Manifest file with list of packages to install (one per line)
 -m --mirror <url>
     apt mirror to use (i.e. http://ports.ubuntu.com/ubuntu-ports)
     (default: http://ports.ubuntu.com/ubuntu-ports)
@@ -469,6 +471,10 @@ while [ ! -z "$1" ]; do
                 usage
             fi
             IMAGESIZE="$2"
+            ;;
+        -g|--manifest)
+            checkparm "${2}"
+            SELECTION="$(cat "${2}" | sed ':a;N;$!ba;s/\n/ /g')"
             ;;
         -m|--mirror)
             checkparm $2
