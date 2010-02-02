@@ -221,7 +221,7 @@ run_vm()
 {
     # get kernel
     [ $QUIET ] || echo "I: Getting Virtual Machine kernel from the server"
-    LANG=C wget -O $BUILDDIR/qemu-vmlinuz $KERNEL >>$LOG 2>&1
+    get_vm_kernel
 
     mkfifo $QEMUFIFO
 
@@ -319,6 +319,35 @@ setup_kernel_image()
     echo "I: $KERNEL_IMG download complete"
     #Hack dpkg -i fails, no postinstall script is run anyways, so lets just extract it.
     KERNEL_IMAGE_CMD="dpkg -x /tmp/$KERNEL_IMG /"
+}
+
+get_vm_kernel()
+{
+    KERNEL="http://people.canonical.com/~ogra/arm/qemu/vmlinuz-2.6.31-rc3versatile1-cortex-a8"
+    if [ "$DIST" = "jaunty" ];then
+        KERNEL="http://people.canonical.com/~ogra//arm/qemu/kernel/vmlinuz-2.6.28-versatile"
+    fi
+    # below code is disabled temporary until lucid versatile package is fixed.
+    if [ "$DIST" = "xxxlucid" ];then
+        SERVER="http://ports.ubuntu.com"
+        PKG_FILE="Packages.gz"
+        PKGS="${SERVER}/dists/${DIST}/main/binary-armel/${PKG_FILE}"
+
+        mkdir -p ${BUILDDIR}/kernel-tmpdir
+
+        wget -q -O "${BUILDDIR}/kernel-tmpdir/${PKG_FILE}" $PKGS
+
+        KERNEL_DEB=$(zcat "${BUILDDIR}/kernel-tmpdir/${PKG_FILE}"|grep-dctrl linux-image -a versatile -s Filename -|sed 's/^.* //')
+
+        wget -q -O "${BUILDDIR}/kernel-tmpdir/$(basename $KERNEL_DEB)" $SERVER/$KERNEL_DEB
+
+        dpkg -x "${BUILDDIR}/kernel-tmpdir/$(basename $KERNEL_DEB)" $BUILDDIR/kernel-tmpdir/
+        mv $BUILDDIR/kernel-tmpdir/boot/vmlinuz* $BUILDDIR/qemu-vmlinuz
+
+        rm -rf $BUILDDIR/kernel-tmpdir
+    else
+        LANG=C wget -O $BUILDDIR/qemu-vmlinuz $KERNEL >>$LOG 2>&1
+    fi
 }
 
 extract_kernel_image()
