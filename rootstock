@@ -169,8 +169,10 @@ checkparm()
 
 savelog()
 {
-    mv $LOG $DIR/
-    echo "I: A logfile was saved as $DIR/$(basename $0)-$STAMP.log"
+    if [ -z "$NOSAVELOG" ];then
+        mv $LOG $DIR/
+        echo "I: A logfile was saved as $DIR/$(basename $0)-$STAMP.log"
+    fi
 }
 
 create_raw_image()
@@ -416,6 +418,13 @@ extract_kernel_image()
     cp $DIR/dl/tmp/boot/vmlinuz-* $DIR
     rm -rfd $DIR/dl/
     echo "I: vmlinuz ready for (mkimage/etc) tool"
+}
+
+clean_package_cache()
+{
+    [ $QUIET ] || echo "I: Removing cached files"
+    rm -rf $CACHEDIR/*
+    cleanup
 }
 
 save_package_cache()
@@ -692,6 +701,10 @@ while [ ! -z "$1" ]; do
             RESTORE_PACKAGE_CACHE=1
             APT_UPDATE=""
             ;;
+        --clean-package-cache)
+            CLEAN_PACKAGE_CACHE=1
+            NOSAVELOG=1
+            ;;
     esac
     shift
 done
@@ -709,6 +722,10 @@ ZONE=${TZONE#*/}
 
 if [ ! "${FQDN}" ] || [ ! "${NEWUSER}" ] || [ ! "${PASSWD}" ];then
     usage
+fi
+
+if [ "$CLEAN_PACKAGE_CACHE" ];then
+    clean_package_cache
 fi
 
 create_raw_image
