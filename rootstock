@@ -201,6 +201,11 @@ run_first_stage()
     DEFOPTS="--foreign --arch=armel"
 
     if [ "$RESTORE_PACKAGE_CACHE" ];then
+        if [ ! -d $CACHEDIR ];then
+            echo "I: Error, no pre-cached packages found !"
+            echo "I: please run rootstock with --copy-package-cache first"
+            cleanup
+        fi
         [ $QUIET ] || echo "I: using pre-cached packages"
         EXTRAOPTS="--unpack-tarball=$TARBALL"
         DMIRROR="file://$CACHEDIR"
