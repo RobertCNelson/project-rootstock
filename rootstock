@@ -198,12 +198,20 @@ run_first_stage()
     EXTRAOPTS=""
     TARBALL=$CACHEDIR/debootstrap.tgz
     DMIRROR="$MIRROR"
+    DEFOPTS="--foreign --arch=armel"
+
+    if [ "$RESTORE_PACKAGE_CACHE" ];then
+        [ $QUIET ] || echo "I: using pre-cached packages"
+        EXTRAOPTS="--unpack-tarball=$TARBALL"
+        DMIRROR="file://$CACHEDIR"
+    fi
 
     if [ "$COPY_PACKAGE_CACHE" ];then
-        [ $QUIET ] || echo "I: copy-package-cache selected, pre-caching debootstrap packages"
-        mkdir -p $CACHEDIR/dists/$DIST
-        debootstrap --foreign --arch=armel --keep-debootstrap-dir --make-tarball=$TARBALL $DIST $MOUNTPOINT $MIRROR >$DBFIFO 2>&1 &
-        EXTRAOPTS="--unpack-tarball=$TARBALL"
+        [ $QUIET ] || echo "I: pre-caching debootstrap packages"
+        EXTRAOPTS="--keep-debootstrap-dir --make-tarball=$TARBALL"
+        mkdir -p $CACHEDIR
+
+        LANG=C debootstrap $DEFOPTS $EXTRAOPTS $DIST $MOUNTPOINT $DMIRROR >$DBFIFO 2>&1 &
         echo $! > $DBPID
         while read line; do
             echo ${line} >>$LOG 2>&1
@@ -211,18 +219,31 @@ run_first_stage()
                 echo "${line}"
             fi
         done <$DBFIFO
-        cp $MOUNTPOINT/var/lib/apt/lists/*Release $CACHEDIR/dists/$DIST/Release
-        DMIRROR="file://$CACHEDIR"
-    fi
-    if [ "$RESTORE_PACKAGE_CACHE" ];then
+
         EXTRAOPTS="--unpack-tarball=$TARBALL"
-        DMIRROR="file://$CACHEDIR"
     fi
+
+    LANG=C debootstrap $DEFOPTS $EXTRAOPTS $DIST $MOUNTPOINT $DMIRROR >$DBFIFO 2>&1 &
+
+    echo $! > $DBPID
+    while read line; do
+        echo ${line} >>$LOG 2>&1
+        if [ ! "$QUIET" ];then
+            echo "${line}"
+        fi
+    done <$DBFIFO
+
+    if [ "$COPY_PACKAGE_CACHE" ];then
+        mkdir -p $CACHEDIR/dists/$DIST
+        cp $MOUNTPOINT/var/lib/apt/lists/*Release $CACHEDIR/dists/$DIST/Release
+    fi
+
     if [ ! $(which qemu-arm-static) ];then
-        LANG=C debootstrap --foreign --arch=armel $EXTRAOPTS $DIST $MOUNTPOINT $DMIRROR >$DBFIFO 2>&1 &
         SECOND_STAGE="/debootstrap/debootstrap --second-stage"
     else
-        LANG=C build-arm-chroot $EXTRAOPTS $DIST $MOUNTPOINT $DMIRROR >$DBFIFO 2>&1 &
+        mkdir -p $MOUNTPOINT/usr/bin/
+        cp $(which qemu-arm-static) $MOUNTPOINT/usr/bin/
+        chroot $MOUNTPOINT debootstrap/debootstrap --second-stage >$DBFIFO 2>&1 &
         SECOND_STAGE=""
     fi
     echo $! > $DBPID
@@ -412,7 +433,7 @@ save_package_cache()
 
 restore_package_cache()
 {
-    [ $QUIET ] || echo "I: restoring cached packages"
+    [ $QUIET ] || echo -n "I: restoring cached packages"
 
 
     mkdir -p $MOUNTPOINT/var/cache/apt/archives
