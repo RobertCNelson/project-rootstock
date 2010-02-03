@@ -195,11 +195,34 @@ run_first_stage()
 
     mkfifo $DBFIFO
 
+    EXTRAOPTS=""
+    TARBALL=$CACHEDIR/debootstrap.tgz
+    DMIRROR="$MIRROR"
+
+    if [ "$COPY_PACKAGE_CACHE" ];then
+        [ $QUIET ] || echo "I: copy-package-cache selected, pre-caching debootstrap packages"
+        mkdir -p $CACHEDIR/dists/$DIST
+        debootstrap --foreign --arch=armel --keep-debootstrap-dir --make-tarball=$TARBALL $DIST $MOUNTPOINT $MIRROR >$DBFIFO 2>&1 &
+        EXTRAOPTS="--unpack-tarball=$TARBALL"
+        echo $! > $DBPID
+        while read line; do
+            echo ${line} >>$LOG 2>&1
+            if [ ! "$QUIET" ];then
+                echo "${line}"
+            fi
+        done <$DBFIFO
+        cp $MOUNTPOINT/var/lib/apt/lists/*Release $CACHEDIR/dists/$DIST/Release
+        DMIRROR="file://$CACHEDIR"
+    fi
+    if [ "$RESTORE_PACKAGE_CACHE" ];then
+        EXTRAOPTS="--unpack-tarball=$TARBALL"
+        DMIRROR="file://$CACHEDIR"
+    fi
     if [ ! $(which qemu-arm-static) ];then
-        LANG=C debootstrap --foreign --arch=armel $DIST $MOUNTPOINT $MIRROR >$DBFIFO 2>&1 &
+        LANG=C debootstrap --foreign --arch=armel $EXTRAOPTS $DIST $MOUNTPOINT $DMIRROR >$DBFIFO 2>&1 &
         SECOND_STAGE="/debootstrap/debootstrap --second-stage"
     else
-        LANG=C build-arm-chroot $DIST $MOUNTPOINT $MIRROR >$DBFIFO 2>&1 &
+        LANG=C build-arm-chroot $EXTRAOPTS $DIST $MOUNTPOINT $DMIRROR >$DBFIFO 2>&1 &
         SECOND_STAGE=""
     fi
     echo $! > $DBPID
@@ -310,7 +333,7 @@ setup_kernel_image()
 
     mkdir -p $DIR/dl/
     wget --directory-prefix=$DIR/dl/ --quiet $KERNEL_IMG
-    
+
     KERNEL_IMG=${KERNEL_IMG##*/}
 
     test -d $MOUNTPOINT/tmp/|| mkdir -p $MOUNTPOINT/tmp/
@@ -323,31 +346,39 @@ setup_kernel_image()
 
 get_vm_kernel()
 {
-    # jaunty requires v5, karmic v6 and VFP, lucid and later v7
-    KERNEL="http://people.canonical.com/~ogra/arm/qemu/vmlinuz-2.6.31-rc3versatile1-cortex-a8"
-    if [ "$DIST" = "jaunty" ];then
-        KERNEL="http://people.canonical.com/~ogra//arm/qemu/kernel/vmlinuz-2.6.28-versatile"
-    fi
-    # below code is disabled temporary until lucid versatile package is fixed.
-    if [ "$DIST" = "xxxlucid" ];then
-        SERVER="http://ports.ubuntu.com"
-        PKG_FILE="Packages.gz"
-        PKGS="${SERVER}/dists/${DIST}/main/binary-armel/${PKG_FILE}"
-
-        mkdir -p ${BUILDDIR}/kernel-tmpdir
-
-        wget -q -O "${BUILDDIR}/kernel-tmpdir/${PKG_FILE}" $PKGS
-
-        KERNEL_DEB=$(zcat "${BUILDDIR}/kernel-tmpdir/${PKG_FILE}"|grep-dctrl linux-image -a versatile -s Filename -|sed 's/^.* //')
-
-        wget -q -O "${BUILDDIR}/kernel-tmpdir/$(basename $KERNEL_DEB)" $SERVER/$KERNEL_DEB
-
-        dpkg -x "${BUILDDIR}/kernel-tmpdir/$(basename $KERNEL_DEB)" $BUILDDIR/kernel-tmpdir/
-        mv $BUILDDIR/kernel-tmpdir/boot/vmlinuz* $BUILDDIR/qemu-vmlinuz
-
-        rm -rf $BUILDDIR/kernel-tmpdir
+    if [ "$RESTORE_PACKAGE_CACHE" ];then
+        cp $CACHEDIR/vmkernel/qemu-vmlinuz $BUILDDIR/qemu-vmlinuz
     else
-        LANG=C wget -O $BUILDDIR/qemu-vmlinuz $KERNEL >>$LOG 2>&1
+        # jaunty requires v5, karmic v6 and VFP, lucid and later v7
+        KERNEL="http://people.canonical.com/~ogra/arm/qemu/vmlinuz-2.6.31-rc3versatile1-cortex-a8"
+        if [ "$DIST" = "jaunty" ];then
+            KERNEL="http://people.canonical.com/~ogra//arm/qemu/kernel/vmlinuz-2.6.28-versatile"
+        fi
+        # below code is disabled temporary until lucid versatile package is fixed.
+        if [ "$DIST" = "xxxlucid" ];then
+            SERVER="http://ports.ubuntu.com"
+            PKG_FILE="Packages.gz"
+            PKGS="${SERVER}/dists/${DIST}/main/binary-armel/${PKG_FILE}"
+
+            mkdir -p ${BUILDDIR}/kernel-tmpdir
+
+            wget -q -O "${BUILDDIR}/kernel-tmpdir/${PKG_FILE}" $PKGS
+
+            KERNEL_DEB=$(zcat "${BUILDDIR}/kernel-tmpdir/${PKG_FILE}"|grep-dctrl linux-image -a versatile -s Filename -|sed 's/^.* //')
+
+            wget -q -O "${BUILDDIR}/kernel-tmpdir/$(basename $KERNEL_DEB)" $SERVER/$KERNEL_DEB
+
+            dpkg -x "${BUILDDIR}/kernel-tmpdir/$(basename $KERNEL_DEB)" $BUILDDIR/kernel-tmpdir/
+            mv $BUILDDIR/kernel-tmpdir/boot/vmlinuz* $BUILDDIR/qemu-vmlinuz
+
+            rm -rf $BUILDDIR/kernel-tmpdir
+        else
+            LANG=C wget -O $BUILDDIR/qemu-vmlinuz $KERNEL >>$LOG 2>&1
+        fi
+        if [ "$COPY_PACKAGE_CACHE" ];then
+            mkdir -p $CACHEDIR/vmkernel/
+            cp $BUILDDIR/qemu-vmlinuz $CACHEDIR/vmkernel/
+        fi
     fi
 }
 
@@ -359,6 +390,46 @@ extract_kernel_image()
     cp $DIR/dl/tmp/boot/vmlinuz-* $DIR
     rm -rfd $DIR/dl/
     echo "I: vmlinuz ready for (mkimage/etc) tool"
+}
+
+save_package_cache()
+{
+    [ $QUIET ] || echo "I: caching packages for later use"
+
+    mount_image
+
+    mkdir -p $CACHEDIR
+    cp -up $MOUNTPOINT/var/cache/apt/archives/*.deb $CACHEDIR/ || true
+
+
+    mkdir -p $CACHEDIR/lists
+    cp -p $MOUNTPOINT/var/lib/apt/lists/*Packages $CACHEDIR/lists/ || true
+
+    chroot $MOUNTPOINT apt-get clean
+
+    umount $MOUNTPOINT
+}
+
+restore_package_cache()
+{
+    [ $QUIET ] || echo "I: restoring cached packages"
+
+
+    mkdir -p $MOUNTPOINT/var/cache/apt/archives
+    i=0
+    cp -vp $CACHEDIR/*.deb $MOUNTPOINT/var/cache/apt/archives/ | \
+                while read line ; do
+                    if [ "$i" -ge "5" ]; then
+                        [ $QUIET ] || echo -n .
+                        i=0
+                    else
+                        i=$(($i+1))
+                    fi
+                done
+                [ $QUIET ] || echo
+    mkdir -p $MOUNTPOINT/var/lib/apt/lists/
+    cp -p $CACHEDIR/lists/*Packages $MOUNTPOINT/var/lib/apt/lists/ || true
+    APT_UPDATE=""
 }
 
 roll_tarball()
@@ -436,6 +507,9 @@ LOG="$BUILDDIR/$(basename $0)-$STAMP.log"
 DEBOOTSTRAP_MIN_VER="1.0.10ubuntu3"
 DBSV="$(debootstrap --version|cut -d " " -f2)"
 
+PACKAGE_CLEANUP="apt-get clean"
+APT_UPDATE="apt-get update"
+CACHEDIR="/var/cache/rootstock/archives"
 
 # we need root
 if [ $(id -u) != 0 ];then
@@ -584,6 +658,14 @@ while [ ! -z "$1" ]; do
             KERNEL_IMAGE=1
             KERNEL_IMG="$2"
             ;;
+        --copy-package-cache)
+            COPY_PACKAGE_CACHE=1
+            PACKAGE_CLEANUP=""
+            ;;
+        --restore-package-cache)
+            RESTORE_PACKAGE_CACHE=1
+            APT_UPDATE=""
+            ;;
     esac
     shift
 done
@@ -676,11 +758,13 @@ cp -f /usr/share/zoneinfo/${AREA}/${ZONE} /etc/localtime || true
 
 groupadd fuse || true
 
-apt-get update
-apt-get clean
+${APT_UPDATE}
+
+${PACKAGE_CLEANUP}
+
 [ -z "${SELECTION}" ] || apt-get -y install ${SELECTION}
 
-apt-get clean
+${PACKAGE_CLEANUP}
 
 ${KERNEL_IMAGE_CMD}
 
@@ -720,11 +804,21 @@ fi
 mv $BUILDDIR/installer $MOUNTPOINT/bin/ >>$LOG 2>&1
 chmod +x $MOUNTPOINT/bin/installer >>$LOG 2>&1
 
+# restore cached packages from host machine
+if [ "$RESTORE_PACKAGE_CACHE" ];then
+    restore_package_cache
+fi
+
 # make sure we're not mounted
 umount $MOUNTPOINT >>$LOG 2>&1
 
 # run vm for second stage
 run_vm
+
+# cache packages on host machine
+if [ "$COPY_PACKAGE_CACHE" ];then
+    save_package_cache
+fi
 
 # build a rootfs tarball
 if [ ! "$NOTARBALL" ];then
