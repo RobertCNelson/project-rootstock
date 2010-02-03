@@ -206,6 +206,7 @@ run_first_stage()
         if [ ! -d $CACHEDIR ];then
             echo "I: Error, no pre-cached packages found !"
             echo "I: please run rootstock with --copy-package-cache first"
+            NOSAVELOG=1
             cleanup
         fi
         [ $QUIET ] || echo "I: using pre-cached packages"
