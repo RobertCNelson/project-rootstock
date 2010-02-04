@@ -84,12 +84,12 @@ cat <<EOF
 required options:
 -f --fqdn <hostname>
     Hostname to be used for the target system
+
+additional options:
 -l --login <login name>
     Login ID of the admin user created during setup
 -p --password <password>
     Password of the admin user created during setup
-
-additional options:
 -h --help
     this help
 -n --fullname <quoted string>
@@ -721,8 +721,15 @@ ZONE=${TZONE#*/}
 
 # check if we have at least hostname, login and password
 
-if [ ! "${FQDN}" ] || [ ! "${NEWUSER}" ] || [ ! "${PASSWD}" ];then
+if [ ! "${FQDN}" ];then
     usage
+fi
+
+USERADD_CMD="useradd -G ${DEFGROUPS} -s /bin/bash -m -p ${PW} -c "${FULLNAME}" ${NEWUSER} || true"
+if [ ! "${NEWUSER}" ] || [ ! "${PASSWD}" ];then
+    SELECTION="$SELECTION oem-config"
+    OEM_CONFIG_ENABLE="touch /var/lib/oem-config/run"
+    USERADD_CMD=""
 fi
 
 if [ "$CLEAN_PACKAGE_CACHE" ];then
@@ -813,8 +820,12 @@ ${PACKAGE_CLEANUP}
 ${KERNEL_IMAGE_CMD}
 
 groupadd admin || true
-useradd -G ${DEFGROUPS} -s /bin/bash -m -p ${PW} -c "${FULLNAME}" ${NEWUSER} || true
+
+${OEM_CONFIG_ENABLE}
+
 echo '%admin  ALL=(ALL) ALL' >>/etc/sudoers
+
+${USERADD_CMD}
 
 passwd -l root || true
 
