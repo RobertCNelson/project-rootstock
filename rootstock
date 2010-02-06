@@ -439,7 +439,7 @@ save_package_cache()
 
 
     mkdir -p $CACHEDIR/lists
-    cp -p $MOUNTPOINT/var/lib/apt/lists/*Packages $CACHEDIR/lists/ || true
+    cp -p $MOUNTPOINT/var/lib/apt/lists/* $CACHEDIR/lists/ || true
 
     chroot $MOUNTPOINT apt-get clean
 
@@ -464,8 +464,9 @@ restore_package_cache()
                 done
                 [ $QUIET ] || echo
     mkdir -p $MOUNTPOINT/var/lib/apt/lists/
-    cp -p $CACHEDIR/lists/*Packages $MOUNTPOINT/var/lib/apt/lists/ || true
+    cp -p $CACHEDIR/lists/* $MOUNTPOINT/var/lib/apt/lists/ || true
     APT_UPDATE=""
+    #APT_FORCE="--force-yes"
 }
 
 roll_tarball()
@@ -545,6 +546,7 @@ DBSV="$(debootstrap --version|cut -d " " -f2)"
 
 PACKAGE_CLEANUP="apt-get clean"
 APT_UPDATE="apt-get update"
+APT_FORCE=""
 CACHEDIR="/var/cache/rootstock/archives"
 
 # we need root
@@ -725,6 +727,8 @@ if [ ! "${FQDN}" ];then
     usage
 fi
 
+PW=$(perl -e 'print crypt($ARGV[0], "qemuonarm")', $PASSWD)
+
 USERADD_CMD="useradd -G ${DEFGROUPS} -s /bin/bash -m -p ${PW} -c "${FULLNAME}" ${NEWUSER} || true"
 if [ ! "${NEWUSER}" ] || [ ! "${PASSWD}" ];then
     SELECTION="$SELECTION oem-config"
@@ -757,8 +761,6 @@ echo "127.0.0.1 localhost" >$HOSTS
 echo "127.0.1.1 ${FQDN}" >>$HOSTS
 
 echo "${FQDN}" >$MOUNTPOINT/etc/hostname
-
-PW=$(perl -e 'print crypt($ARGV[0], "qemuonarm")', $PASSWD)
 
 if [ "$KERNEL_IMAGE" ];then
     setup_kernel_image
@@ -813,7 +815,7 @@ ${APT_UPDATE}
 
 ${PACKAGE_CLEANUP}
 
-[ -z "${SELECTION}" ] || apt-get -y install ${SELECTION}
+[ -z "${SELECTION}" ] || apt-get -y ${APT_FORCE} install ${SELECTION}
 
 ${PACKAGE_CLEANUP}
 
