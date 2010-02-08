@@ -551,6 +551,7 @@ DEBOOTSTRAP_MIN_VER="1.0.10ubuntu3"
 DBSV="$(debootstrap --version|cut -d " " -f2)"
 
 PACKAGE_CLEANUP="apt-get clean"
+PACKAGE_CLEANUP_SUB="${PACKAGE_CLEANUP}"
 APT_UPDATE="apt-get update"
 APT_FORCE=""
 CACHEDIR="/var/cache/rootstock/archives"
@@ -705,10 +706,12 @@ while [ ! -z "$1" ]; do
         --copy-package-cache)
             COPY_PACKAGE_CACHE=1
             PACKAGE_CLEANUP=""
+            PACKAGE_CLEANUP_SUB=""
             ;;
         --restore-package-cache)
             RESTORE_PACKAGE_CACHE=1
             APT_UPDATE=""
+            PACKAGE_CLEANUP=""
             ;;
         --clean-package-cache)
             CLEAN_PACKAGE_CACHE=1
@@ -749,6 +752,11 @@ fi
 create_raw_image
 mount_image
 run_first_stage
+
+# restore cached packages from host machine
+if [ "$RESTORE_PACKAGE_CACHE" ];then
+    restore_package_cache
+fi
 
 # basic fstab
 echo "proc /proc proc defaults 0 0" >$MOUNTPOINT/etc/fstab
@@ -823,7 +831,7 @@ ${PACKAGE_CLEANUP}
 
 [ -z "${SELECTION}" ] || apt-get -y ${APT_FORCE} install ${SELECTION}
 
-${PACKAGE_CLEANUP}
+${PACKAGE_CLEANUP_SUB}
 
 ${KERNEL_IMAGE_CMD}
 
@@ -866,11 +874,6 @@ fi
 
 mv $BUILDDIR/installer $MOUNTPOINT/bin/ >>$LOG 2>&1
 chmod +x $MOUNTPOINT/bin/installer >>$LOG 2>&1
-
-# restore cached packages from host machine
-if [ "$RESTORE_PACKAGE_CACHE" ];then
-    restore_package_cache
-fi
 
 # make sure we're not mounted
 umount $MOUNTPOINT >>$LOG 2>&1
