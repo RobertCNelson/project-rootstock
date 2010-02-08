@@ -547,9 +547,6 @@ SWAPSIZE=256
 # general defaults
 LOG="$BUILDDIR/$(basename $0)-$STAMP.log"
 
-DEBOOTSTRAP_MIN_VER="1.0.10ubuntu3"
-DBSV="$(debootstrap --version|cut -d " " -f2)"
-
 PACKAGE_CLEANUP="apt-get clean"
 PACKAGE_CLEANUP_SUB="${PACKAGE_CLEANUP}"
 APT_UPDATE="apt-get update"
@@ -573,16 +570,6 @@ if [ ! $(which debootstrap) ];then
     echo "debootstrap not installed, please use:"
     echo "sudo apt-get install debootstrap"
     echo "to install the debootstrap package !"
-    exit 1
-fi
-
-if $(dpkg --compare-versions $DBSV lt $DEBOOTSTRAP_MIN_VER);then
-    echo "Wrong debootstrap version detected, please install at least"
-    echo "debootstrap version $DEBOOTSTRAP_MIN_VER to make this script work"
-    echo "You can download it from:"
-    echo "http://archive.ubuntu.com/ubuntu/pool/main/d/debootstrap/debootstrap_${DEBOOTSTRAP_MIN_VER}_all.deb"
-    echo "and install the downloaded package with:"
-    echo "dpkg -i <download path>/debootstrap_${DEBOOTSTRAP_MIN_VER}_all.deb"
     exit 1
 fi
 
