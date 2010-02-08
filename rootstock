@@ -518,6 +518,7 @@ IMAGESIZE="1G" # make this 3G for an ubuntu-desktop install
 
 # default to the build system locale
 . /etc/environment
+. /etc/default/locale
 NEWLOCALE=$LANG
 
 # default to the build system keyboard setup
@@ -818,7 +819,7 @@ dhclient eth0
 
 locale-gen --no-purge en_GB.UTF-8 || true
 locale-gen --no-purge ${NEWLOCALE} || true
-echo LANG=${NEWLOCALE} >>/etc/environment
+echo LANG=${NEWLOCALE} >>/etc/default/locale
 
 sed -i -e 's/^XKBMODEL=.*\$/XKBMODEL="${XKBM}"/' /etc/default/console-setup || true
 sed -i -e 's/^XKBLAYOUT=.*\$/XKBLAYOUT="${XKBL}"/' /etc/default/console-setup || true
