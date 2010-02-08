@@ -51,7 +51,7 @@ http://people.ubuntu.com/~ogra/arm/qemu/kernel/
 
 and start qemu with the following command (indeed, you need to adjust the rootfs img name to whatever your image is called)
 
-sudo qemu-system-arm -M versatilepb -kernel ./vmlinuz-2.6.28-versatile -hda arm-rootfs.img -m 256 -append "root=/dev/sda mem=256M ro"
+qemu-system-arm -M versatilepb -kernel ./vmlinuz-2.6.28-versatile -hda arm-rootfs.img -m 256 -append "root=/dev/sda mem=256M ro"
 
 In the booted image you can then log in with the user and password you defined during image creation.
 
