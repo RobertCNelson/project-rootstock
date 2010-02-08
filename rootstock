@@ -161,6 +161,8 @@ advanced options:
     use precached packages from a former build run with --copy-package-cache
 --clean-package-cache
     empty the package cache of a former --copy-package-cache run
+--extra-mirror
+    additional mirror to use
 EOF
     exit 0
 }
@@ -475,6 +477,11 @@ restore_package_cache()
     APT_FORCE="--allow-unauthenticated"
 }
 
+add_extra_mirror()
+{
+    EXRA_MIRROR_CMD="echo \"deb ${EXTRAMIRROR} ${DIST} ${COMPONENTS}\" >>/etc/apt/sources.list"
+}
+
 roll_tarball()
 {
     # create a rootfs tgz
@@ -552,6 +559,7 @@ PACKAGE_CLEANUP_SUB="${PACKAGE_CLEANUP}"
 APT_UPDATE="apt-get update"
 APT_FORCE=""
 CACHEDIR="/var/cache/rootstock/archives"
+EXRA_MIRROR_CMD=""
 
 # we need root
 if [ $(id -u) != 0 ];then
@@ -704,6 +712,10 @@ while [ ! -z "$1" ]; do
             CLEAN_PACKAGE_CACHE=1
             NOSAVELOG=1
             ;;
+        --extra-mirror)
+            checkparm $2
+            EXTRAMIRROR=$2
+            ;;
     esac
     shift
 done
@@ -743,6 +755,10 @@ run_first_stage
 # restore cached packages from host machine
 if [ "$RESTORE_PACKAGE_CACHE" ];then
     restore_package_cache
+fi
+
+if [ "$EXTRAMIRROR" ];then
+    add_extra_mirror
 fi
 
 # basic fstab
@@ -793,6 +809,7 @@ cp /bin/true /usr/sbin/invoke-rc.d
 ${SWAPCMD}
 
 echo "deb ${MIRROR} ${DIST} ${COMPONENTS}" >/etc/apt/sources.list
+${EXRA_MIRROR_CMD}
 
 ifconfig lo up
 ifconfig eth0 up
