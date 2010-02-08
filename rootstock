@@ -154,7 +154,13 @@ extra parameters:
 advanced options:
 --kernel-image
     install board specfic kernel image inside rootfs
-
+--copy-package-cache
+    save a snapshot of all packages used for a build locally to re-use them
+    in a subsequent offline build with the --restore-package-cache option
+--restore-package-cache
+    use precached packages from a former build run with --copy-package-cache
+--clean-package-cache
+    empty the package cache of a former --copy-package-cache run
 EOF
     exit 0
 }
@@ -466,7 +472,7 @@ restore_package_cache()
     mkdir -p $MOUNTPOINT/var/lib/apt/lists/
     cp -p $CACHEDIR/lists/* $MOUNTPOINT/var/lib/apt/lists/ || true
     APT_UPDATE=""
-    #APT_FORCE="--force-yes"
+    APT_FORCE="--allow-unauthenticated"
 }
 
 roll_tarball()
