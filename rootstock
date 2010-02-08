@@ -790,6 +790,7 @@ set -e
 
 export PATH
 export LC_ALL=C
+export DEBIAN_FRONTEND=noninteractive
 
 ${SECOND_STAGE}
 
