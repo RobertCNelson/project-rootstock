@@ -740,13 +740,12 @@ PW=$(perl -e 'print crypt($ARGV[0], "qemuonarm")', $PASSWD)
 
 USERADD_CMD="useradd -G ${DEFGROUPS} -s /bin/bash -m -p ${PW} -c "${FULLNAME}" ${NEWUSER} || true"
 if [ ! "${NEWUSER}" ] || [ ! "${PASSWD}" ];then
-    USERADD_CMD='if [ -n "$(dpkg -l xserver-xorg 2>/dev/null|grep ^ii)" ];then
+    USERADD_CMD='PACKAGE="oem-config"
+if [ -n "$(dpkg -l xserver-xorg 2>/dev/null|grep ^ii)" ];then
     if [ $(which gdm) ];then
         PACKAGE="oem-config-gtk"
     elif [ $(which kdm) ];then
         PACKAGE="oem-config-kde"
-    else
-        PACKAGE="oem-config"
     fi
 fi
 
