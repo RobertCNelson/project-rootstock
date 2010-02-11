@@ -740,9 +740,18 @@ PW=$(perl -e 'print crypt($ARGV[0], "qemuonarm")', $PASSWD)
 
 USERADD_CMD="useradd -G ${DEFGROUPS} -s /bin/bash -m -p ${PW} -c "${FULLNAME}" ${NEWUSER} || true"
 if [ ! "${NEWUSER}" ] || [ ! "${PASSWD}" ];then
-    SELECTION="$SELECTION oem-config"
+    USERADD_CMD='if [ -n "$(dpkg -l xserver-xorg 2>/dev/null|grep ^ii)" ];then
+    if [ $(which gdm) ];then
+        PACKAGE="oem-config-gtk"
+    elif [ $(which kdm) ];then
+        PACKAGE="oem-config-kde"
+    else
+        PACKAGE="oem-config"
+    fi
+fi
+
+apt-get install -y --no-install-recommends $PACKAGE'
     OEM_CONFIG_ENABLE="touch /var/lib/oem-config/run"
-    USERADD_CMD=""
 fi
 
 if [ "$CLEAN_PACKAGE_CACHE" ];then
@@ -843,11 +852,11 @@ ${KERNEL_IMAGE_CMD}
 
 groupadd admin || true
 
-${OEM_CONFIG_ENABLE}
-
 echo '%admin  ALL=(ALL) ALL' >>/etc/sudoers
 
 ${USERADD_CMD}
+
+${OEM_CONFIG_ENABLE}
 
 passwd -l root || true
 
