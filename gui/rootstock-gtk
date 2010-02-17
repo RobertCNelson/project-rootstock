@@ -1,0 +1,195 @@
+#!/usr/bin/python
+
+import pygtk
+pygtk.require('2.0')
+import gtk
+
+releases = ['lucid', 'karmic', 'jaunty']
+
+class MainWin:
+    def __init__(self):
+        self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
+        self.window.connect("destroy", self.destroy)
+
+        # the menubar
+        mb = gtk.MenuBar()
+        filemenu = gtk.Menu()
+        filem = gtk.MenuItem("File")
+        filem.set_submenu(filemenu)
+
+        gtk.stock_add([(gtk.STOCK_OPEN, "Load Profile", 0, 0, "")])
+        open_prof = gtk.ImageMenuItem(gtk.STOCK_OPEN, None)
+        open_prof.connect("activate", self.open_profile)
+        filemenu.append(open_prof)
+
+        gtk.stock_add([(gtk.STOCK_SAVE, "Save Profile", 0, 0, "")])
+        save_prof = gtk.ImageMenuItem(gtk.STOCK_SAVE, None)
+        save_prof.connect("activate", self.save_profile)
+        filemenu.append(save_prof)
+
+        sep = gtk.SeparatorMenuItem()
+        filemenu.append(sep)
+
+        exit = gtk.ImageMenuItem(gtk.STOCK_QUIT, None)
+        exit.connect("activate", gtk.main_quit)
+        filemenu.append(exit)
+
+        mb.append(filem)
+
+        # topframe
+        tf = gtk.Frame()
+        tf.set_label("General Options")
+        top_table = gtk.Table(5, 2, False)
+        tf.add(top_table)
+
+        mirrorlabel = gtk.Label("Mirror")
+        mirrorlabel.set_alignment(xalign=0, yalign=0.5)
+        self.mirrorentry = gtk.Entry()
+        self.mirrorentry.insert_text("http://ports.ubuntu.com/ubuntu-ports", 0)
+        self.mirrorentry.set_position(-1)
+        top_table.attach(mirrorlabel, 0, 1, 0, 1)
+        top_table.attach(self.mirrorentry, 1, 2, 0, 1)
+
+        self.xmirror = gtk.CheckButton("Use additional mirror")
+        self.xmirrorentry = gtk.Entry()
+        self.xmirrorentry.set_sensitive(False)
+        self.xmirror.connect("toggled", self.set_sensitivity)
+        top_table.attach(self.xmirror, 0, 1, 1, 2)
+        top_table.attach(self.xmirrorentry, 1, 2, 1, 2)
+
+        releaselabel = gtk.Label("Release")
+        releaselabel.set_alignment(xalign=0, yalign=0.5)
+        self.releaseselect = gtk.combo_box_new_text()
+        for release in releases:
+            self.releaseselect.append_text(release)
+        self.releaseselect.set_active(0)
+        top_table.attach(releaselabel, 0, 1, 2, 3)
+        top_table.attach(self.releaseselect, 1, 2, 2, 3)
+
+        scriptlabel = gtk.Label("Custom post installation script")
+        scriptlabel.set_alignment(xalign=0, yalign=0.5)
+        gtk.stock_add([(gtk.STOCK_OPEN, "Load Script", 0, 0, "")])
+        self.scriptfile = gtk.FileChooserButton("Select script file", None)
+        top_table.attach(scriptlabel, 0, 1, 3, 4)
+        top_table.attach(self.scriptfile, 1, 2, 3, 4)
+
+        imgsizelabel = gtk.Label("Rootfs build Space")
+        imgsizelabel.set_alignment(xalign=0, yalign=0.5)
+        imgsizebox = gtk.HBox(False,0)
+        self.imgsize = gtk.Adjustment(4, 0.5, 100, 0.5, 0, 0)
+        imgsizespin = gtk.SpinButton(self.imgsize, 0.5, 1)
+        imgsizeunit = gtk.Label("Gigabyte")
+        imgsizeunit.set_alignment(xalign=0, yalign=0.5)
+        imgsizebox.add(imgsizespin)
+        imgsizebox.add(imgsizeunit)
+        top_table.attach(imgsizelabel, 0, 1, 4, 5)
+        top_table.attach(imgsizebox, 1, 2, 4, 5)
+
+        # middleframe
+        mf = gtk.Frame()
+        mf.set_label("Options for packages to install")
+        middle_table = gtk.Table(3, 2, False)
+        mf.add(middle_table)
+
+        pkglistlabel = gtk.Label("Use a list of packages")
+        pkglistlabel.set_alignment(xalign=0, yalign=0.5)
+        self.pkglistentry = gtk.Entry()
+        self.pkglistentry.insert_text("ubuntu-minimal", 0)
+        middle_table.attach(pkglistlabel, 0, 1, 1, 2)
+        middle_table.attach(self.pkglistentry, 1, 2, 1, 2)
+
+        tasklabel = gtk.Label("Select an Ubuntu task")
+        tasklabel.set_alignment(xalign=0, yalign=0.5)
+        tasksel = gtk.Button("Run Tasksel")
+        middle_table.attach(tasklabel, 0, 1, 2, 3)
+        middle_table.attach(tasksel, 1, 2, 2, 3)
+
+        seedfilelabel = gtk.Label("Use a seed file")
+        seedfilelabel.set_alignment(xalign=0, yalign=0.5)
+        gtk.stock_add([(gtk.STOCK_OPEN, "Load Seed File", 0, 0, "")])
+        self.seedfile = gtk.FileChooserButton("Select seed file", None)
+        middle_table.attach(seedfilelabel, 0, 1, 3, 4)
+        middle_table.attach(self.seedfile, 1, 2, 3, 4)
+
+        # bottomframe
+        bf = gtk.Frame()
+        bf.set_label("Options for packages to install")
+        bottom_table = gtk.Table(2, 2, False)
+        bf.add(bottom_table)
+
+        seriallabel = gtk.Label("Use serial device in rootfs")
+        seriallabel.set_alignment(xalign=0, yalign=0.5)
+        self.serialentry = gtk.Entry()
+        bottom_table.attach(seriallabel, 0, 1, 1, 2)
+        bottom_table.attach(self.serialentry, 1, 2, 1, 2)
+
+        partitionlabel = gtk.Label("Partition to unpack rootfs to")
+        partitionlabel.set_alignment(xalign=0, yalign=0.5)
+        self.partitionentry = gtk.Entry()
+        bottom_table.attach(partitionlabel, 0, 1, 2, 3)
+        bottom_table.attach(self.partitionentry, 1, 2, 2, 3)
+
+        # buttonbar
+        bb = gtk.HBox(False,0)
+
+        gtk.stock_add([(gtk.STOCK_EXECUTE, "Build", 0, 0, "")])
+        button1 = gtk.Button(None, stock=gtk.STOCK_EXECUTE)
+        button1.connect("clicked", self.run_build)
+
+        button2 = gtk.Button(None, stock=gtk.STOCK_CANCEL)
+        button2.connect("clicked", gtk.main_quit)
+
+        bb.pack_end(button1, False, False, 0)
+        bb.pack_end(button2, False, False, 0)
+
+        # toplevel layout
+        mainbox = gtk.VBox(False, 0)
+        mainbox.pack_start(mb, False, False, 5)
+        mainbox.pack_start(tf, False, False, 5)
+        mainbox.pack_start(mf, False, False, 5)
+        mainbox.pack_start(bf, False, False, 5)
+        mainbox.pack_start(bb, False, False, 5)
+
+        self.window.add(mainbox)
+
+        self.window.show_all()
+
+    def set_sensitivity(self, widget):
+        self.xmirrorentry.set_text("")
+        self.xmirrorentry.set_sensitive(self.xmirror.get_active())
+
+    def run_build(self, widget):
+        command = ['rootstock -f rootstockfs']
+        if self.mirrorentry.get_text():
+            command.append(' -m '+self.mirrorentry.get_text())
+        if self.xmirrorentry.get_text():
+            command.append(' --extra-mirror '+self.xmirrorentry.get_text())
+        command.append(' -d '+releases[self.releaseselect.get_active()])
+        if str(self.scriptfile.get_filename()):
+            command.append(' --script '+str(self.scriptfile.get_filename()))
+        command.append(' -i '+str(self.imgsize.get_value())+'G')
+        if self.pkglistentry.get_text():
+            command.append(' -s '+self.pkglistentry.get_text())
+        #tasksel_value
+        if str(self.seedfile.get_filename()):
+            command.append(' --manifest '+str(self.seedfile.get_filename()))
+        if self.serialentry.get_text():
+            command.append(' --serial '+self.serialentry.get_text())
+        #print 'Target partition: '+self.partitionentry.get_text()
+        print command
+
+    def open_profile(self, widget):
+        print 'open'
+
+    def save_profile(self, widget):
+        print 'save'
+
+    def destroy(self, widget, data=None):
+        gtk.main_quit()
+
+    def main(self):
+        gtk.main()
+
+if __name__ == "__main__":
+    app = MainWin()
+    app.main()
