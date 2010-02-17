@@ -1,0 +1,8 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Terminal=false
+Icon=rootstock
+Exec=gksu rootstock
+Name=RootStock
+Categories=GNOME;GTK;Utility
