@@ -168,12 +168,12 @@ class MainWin:
         if self.xmirrorentry.get_text():
             command.append(' --extra-mirror '+self.xmirrorentry.get_text())
         command.append(' -d '+releases[self.releaseselect.get_active()])
-        if str(self.scriptfile.get_filename()):
+        if self.scriptfile.get_filename() != None:
             command.append(' --script '+str(self.scriptfile.get_filename()))
         command.append(' -i '+str(self.imgsize.get_value())+'G')
         if self.pkglistentry.get_text():
             command.append(' -s '+self.pkglistentry.get_text()+' '+str(self.tasks))
-        if str(self.seedfile.get_filename()):
+        if self.seedfile.get_filename() != None:
             command.append(' --manifest '+str(self.seedfile.get_filename()))
         if self.serialentry.get_text():
             command.append(' --serial '+self.serialentry.get_text())
