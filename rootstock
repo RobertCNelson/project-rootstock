@@ -750,7 +750,9 @@ if [ -n "$(dpkg -l xserver-xorg 2>/dev/null|grep ^ii)" ];then
 fi
 
 apt-get install -y --no-install-recommends $PACKAGE'
-    OEM_CONFIG_ENABLE="touch /var/lib/oem-config/run"
+    OEM_CONFIG_ENABLE="touch /var/lib/oem-config/run
+rm /usr/lib/ubiquity/plugins/ubi-network.py*
+rm /usr/lib/ubiquity/plugins/ubi-tasks.py*"
 fi
 
 if [ "$CLEAN_PACKAGE_CACHE" ];then
@@ -846,8 +848,6 @@ ${PACKAGE_CLEANUP}
 
 [ -z "${SELECTION}" ] || apt-get -y ${APT_FORCE} install ${SELECTION}
 
-${PACKAGE_CLEANUP_SUB}
-
 ${KERNEL_IMAGE_CMD}
 
 groupadd admin || true
@@ -857,6 +857,8 @@ echo '%admin  ALL=(ALL) ALL' >>/etc/sudoers
 ${USERADD_CMD}
 
 ${OEM_CONFIG_ENABLE}
+
+${PACKAGE_CLEANUP_SUB}
 
 passwd -l root || true
 
