@@ -1,30 +1,62 @@
 #!/usr/bin/python
+#  Copyright (c) 2010 Canonical
+#
+#  Author: Oliver Grawert <ogra@canonical.com>
+#
+#  This program is free software; you can redistribute it and/or
+#  modify it under the terms of the GNU General Public License as
+#  published by the Free Software Foundation; either version 2 of the
+#  License, or (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307
+#  USA
+#
+######################################################################
 
 import pygtk
 pygtk.require('2.0')
 import gtk
 from subprocess import Popen,PIPE,call,STDOUT
 
+import gettext
+from gettext import gettext as _
+
+import os
+
 releases = ['lucid', 'karmic', 'jaunty']
 
 class MainWin:
     def __init__(self):
+        APP="rootstock-gtk"
+        DIR="/usr/share/locale"
+
+        gettext.bindtextdomain(APP, DIR)
+        gettext.textdomain(APP)
+
         self.tasks = ""
         self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
         self.window.connect("destroy", self.destroy)
+        self.window.set_size_request(400, 380)
 
         # the menubar
         mb = gtk.MenuBar()
         filemenu = gtk.Menu()
-        filem = gtk.MenuItem("File")
+        filem = gtk.MenuItem(_('File'))
         filem.set_submenu(filemenu)
 
-        gtk.stock_add([(gtk.STOCK_OPEN, "Load Profile", 0, 0, "")])
+        gtk.stock_add([(gtk.STOCK_OPEN, _('Load Profile'), 0, 0, "")])
         open_prof = gtk.ImageMenuItem(gtk.STOCK_OPEN, None)
         open_prof.connect("activate", self.open_profile)
         filemenu.append(open_prof)
 
-        gtk.stock_add([(gtk.STOCK_SAVE, "Save Profile", 0, 0, "")])
+        gtk.stock_add([(gtk.STOCK_SAVE, _('Save Profile'), 0, 0, "")])
         save_prof = gtk.ImageMenuItem(gtk.STOCK_SAVE, None)
         save_prof.connect("activate", self.save_profile)
         filemenu.append(save_prof)
@@ -40,11 +72,11 @@ class MainWin:
 
         # topframe
         tf = gtk.Frame()
-        tf.set_label("General Options")
+        tf.set_label(_('General Options'))
         top_table = gtk.Table(5, 2, False)
         tf.add(top_table)
 
-        mirrorlabel = gtk.Label("Mirror")
+        mirrorlabel = gtk.Label(_('Mirror'))
         mirrorlabel.set_alignment(xalign=0, yalign=0.5)
         self.mirrorentry = gtk.Entry()
         self.mirrorentry.insert_text("http://ports.ubuntu.com/ubuntu-ports", 0)
@@ -52,14 +84,14 @@ class MainWin:
         top_table.attach(mirrorlabel, 0, 1, 0, 1)
         top_table.attach(self.mirrorentry, 1, 2, 0, 1)
 
-        self.xmirror = gtk.CheckButton("Use additional mirror")
+        self.xmirror = gtk.CheckButton(_('Use additional mirror'))
         self.xmirrorentry = gtk.Entry()
         self.xmirrorentry.set_sensitive(False)
         self.xmirror.connect("toggled", self.set_sensitivity)
         top_table.attach(self.xmirror, 0, 1, 1, 2)
         top_table.attach(self.xmirrorentry, 1, 2, 1, 2)
 
-        releaselabel = gtk.Label("Release")
+        releaselabel = gtk.Label(_('Release'))
         releaselabel.set_alignment(xalign=0, yalign=0.5)
         self.releaseselect = gtk.combo_box_new_text()
         for release in releases:
@@ -68,18 +100,18 @@ class MainWin:
         top_table.attach(releaselabel, 0, 1, 2, 3)
         top_table.attach(self.releaseselect, 1, 2, 2, 3)
 
-        scriptlabel = gtk.Label("Custom post installation script")
+        scriptlabel = gtk.Label(_('Custom post installation script'))
         scriptlabel.set_alignment(xalign=0, yalign=0.5)
-        gtk.stock_add([(gtk.STOCK_OPEN, "Load Script", 0, 0, "")])
-        self.scriptfile = gtk.FileChooserButton("Select script file", None)
+        gtk.stock_add([(gtk.STOCK_OPEN, _('Load Script'), 0, 0, "")])
+        self.scriptfile = gtk.FileChooserButton(_('Select script file'), None)
         top_table.attach(scriptlabel, 0, 1, 3, 4)
         top_table.attach(self.scriptfile, 1, 2, 3, 4)
 
-        imgsizelabel = gtk.Label("Rootfs build Space")
+        imgsizelabel = gtk.Label(_('Rootfs build Space'))
         imgsizelabel.set_alignment(xalign=0, yalign=0.5)
         imgsizebox = gtk.HBox(False,0)
-        self.imgsize = gtk.Adjustment(4, 0.5, 100, 0.5, 0, 0)
-        imgsizespin = gtk.SpinButton(self.imgsize, 0.5, 1)
+        self.imgsize = gtk.Adjustment(4, 1, 100, 1, 0, 0)
+        imgsizespin = gtk.SpinButton(self.imgsize, 1, 0)
         imgsizeunit = gtk.Label("Gigabyte")
         imgsizeunit.set_alignment(xalign=0, yalign=0.5)
         imgsizebox.add(imgsizespin)
@@ -89,53 +121,53 @@ class MainWin:
 
         # middleframe
         mf = gtk.Frame()
-        mf.set_label("Options for packages to install")
+        mf.set_label(_('Options for packages to install'))
         middle_table = gtk.Table(3, 2, False)
         mf.add(middle_table)
 
-        pkglistlabel = gtk.Label("Use a list of packages")
+        pkglistlabel = gtk.Label(_('Use a list of packages'))
         pkglistlabel.set_alignment(xalign=0, yalign=0.5)
         self.pkglistentry = gtk.Entry()
         self.pkglistentry.insert_text("ubuntu-minimal", 0)
         middle_table.attach(pkglistlabel, 0, 1, 1, 2)
         middle_table.attach(self.pkglistentry, 1, 2, 1, 2)
 
-        tasklabel = gtk.Label("Select an Ubuntu task")
+        tasklabel = gtk.Label(_('Select an Ubuntu task'))
         tasklabel.set_alignment(xalign=0, yalign=0.5)
-        tasksel = gtk.Button("Run Tasksel")
+        tasksel = gtk.Button(_('Run Tasksel'))
         tasksel.connect("clicked", self.run_tasksel)
         middle_table.attach(tasklabel, 0, 1, 2, 3)
         middle_table.attach(tasksel, 1, 2, 2, 3)
 
-        seedfilelabel = gtk.Label("Use a seed file")
+        seedfilelabel = gtk.Label(_('Use a seed file'))
         seedfilelabel.set_alignment(xalign=0, yalign=0.5)
-        gtk.stock_add([(gtk.STOCK_OPEN, "Load Seed File", 0, 0, "")])
-        self.seedfile = gtk.FileChooserButton("Select seed file", None)
+        gtk.stock_add([(gtk.STOCK_OPEN, _('Load Seed File'), 0, 0, "")])
+        self.seedfile = gtk.FileChooserButton(_('Select seed file'), None)
         middle_table.attach(seedfilelabel, 0, 1, 3, 4)
         middle_table.attach(self.seedfile, 1, 2, 3, 4)
 
         # bottomframe
         bf = gtk.Frame()
-        bf.set_label("Options for packages to install")
+        bf.set_label(_('Advanced Options'))
         bottom_table = gtk.Table(2, 2, False)
         bf.add(bottom_table)
 
-        seriallabel = gtk.Label("Use serial device in rootfs")
+        seriallabel = gtk.Label(_('Use serial device in rootfs'))
         seriallabel.set_alignment(xalign=0, yalign=0.5)
         self.serialentry = gtk.Entry()
         bottom_table.attach(seriallabel, 0, 1, 1, 2)
         bottom_table.attach(self.serialentry, 1, 2, 1, 2)
 
-        partitionlabel = gtk.Label("Partition to unpack rootfs to")
-        partitionlabel.set_alignment(xalign=0, yalign=0.5)
-        self.partitionentry = gtk.Entry()
-        bottom_table.attach(partitionlabel, 0, 1, 2, 3)
-        bottom_table.attach(self.partitionentry, 1, 2, 2, 3)
+        #partitionlabel = gtk.Label(_('Partition to unpack rootfs to'))
+        #partitionlabel.set_alignment(xalign=0, yalign=0.5)
+        #self.partitionentry = gtk.Entry()
+        #bottom_table.attach(partitionlabel, 0, 1, 2, 3)
+        #bottom_table.attach(self.partitionentry, 1, 2, 2, 3)
 
         # buttonbar
         bb = gtk.HBox(False,0)
 
-        gtk.stock_add([(gtk.STOCK_EXECUTE, "Build", 0, 0, "")])
+        gtk.stock_add([(gtk.STOCK_EXECUTE, _('Build'), 0, 0, "")])
         button1 = gtk.Button(None, stock=gtk.STOCK_EXECUTE)
         button1.connect("clicked", self.run_build)
 
@@ -162,7 +194,7 @@ class MainWin:
         self.xmirrorentry.set_sensitive(self.xmirror.get_active())
 
     def run_build(self, widget):
-        command = ['rootstock -f rootstockfs']
+        command = ['cd /tmp;','rootstock -f rootstockfs']
         if self.mirrorentry.get_text():
             command.append(' -m '+self.mirrorentry.get_text())
         if self.xmirrorentry.get_text():
@@ -170,15 +202,108 @@ class MainWin:
         command.append(' -d '+releases[self.releaseselect.get_active()])
         if self.scriptfile.get_filename() != None:
             command.append(' --script '+str(self.scriptfile.get_filename()))
-        command.append(' -i '+str(self.imgsize.get_value())+'G')
+        command.append(' -i '+str(int(self.imgsize.get_value()))+'G')
         if self.pkglistentry.get_text():
             command.append(' -s '+self.pkglistentry.get_text()+' '+str(self.tasks))
         if self.seedfile.get_filename() != None:
             command.append(' --manifest '+str(self.seedfile.get_filename()))
         if self.serialentry.get_text():
             command.append(' --serial '+self.serialentry.get_text())
+        while gtk.events_pending():
+            gtk.main_iteration(True)
         #print 'Target partition: '+self.partitionentry.get_text()
-        print command
+        self.draw_progress_win()
+        self.run_command(command)
+
+    def draw_progress_win(self):
+        while gtk.events_pending():
+            gtk.main_iteration(True)
+        self.window.set_sensitive(False)
+        prgwin = gtk.Window(gtk.WINDOW_TOPLEVEL)
+        prgwin.set_transient_for(self.window)
+        prgwin.connect("destroy", self.close_progress)
+        prgwin.set_title(_('Building rootfs'))
+
+        prgwin.set_size_request(300, 80)
+
+        hbox = gtk.HBox(False, 5)
+        vbox = gtk.VBox(False, 5)
+
+        self.progress = gtk.ProgressBar()
+        vbox.pack_start(self.progress, False, False, 5)
+
+        self.closebut = gtk.Button(None, stock=gtk.STOCK_CANCEL)
+        self.closebut.connect("clicked", self.close_progress)
+        dummy = gtk.Label()
+        hbox.pack_start(dummy, True, True, 5)
+        hbox.pack_start(self.closebut, False, False, 5)
+
+        vbox.pack_start(hbox, False, False, 5)
+
+        prgwin.add(vbox)
+        prgwin.show_all()
+
+    def run_command(self, command):
+        cmdstr = ""
+        lines = 1.0
+        for item in command:
+            cmdstr=cmdstr+' '+item
+        output = Popen([cmdstr], stdout=PIPE, stderr=STDOUT, shell=True)
+        self.rootstockpid = output.pid
+        while output.stdout.readline():
+            line = output.stdout.readline().strip()
+            while gtk.events_pending():
+                gtk.main_iteration(True)
+            self.progress.set_fraction(float(lines/1000))
+            self.progress.set_text(line)
+            if line.startswith("I: ARM rootfs created"):
+                print line
+                self.tarball = line.split('/')[1]
+                self.close_progress
+                self.success
+            elif line.startswith('Kernel panic'):
+                self.close_progress
+                self.error('rootstock died, please see the log')
+            lines += 1
+        pid, sts = os.waitpid(output.pid, 0)
+        self.progress.set_fraction(1.0)
+        if sts != 0:
+            self.error('rootstock died')
+            print "rootstock died !"
+
+    def close_progress(self, widget):
+        while gtk.events_pending():
+            gtk.main_iteration(True)
+        if self.rootstockpid:
+            os.kill(self.rootstockpid+1, 6)
+            pid, sts = os.waitpid(self.rootstockpid, 0)
+            widget.get_parent_window().hide()
+            self.window.set_sensitive(True)
+        else:
+            widget.get_parent_window().hide()
+            self.window.set_sensitive(True)
+
+    def error(self, string):
+        dialog = gtk.Dialog('Error',
+                self.window,
+                gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
+                (gtk.STOCK_OK, gtk.RESPONSE_ACCEPT))
+        dialog.vbox.pack_start(gtk.Label(string))
+        dialog.show_all()
+        result = dialog.run()
+        if result:
+            gtk.main_quit()
+
+    def success(self):
+        dialog = gtk.Dialog('Successfully built rootfs',
+                self.window,
+                gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
+                (gtk.STOCK_OK, gtk.RESPONSE_ACCEPT))
+        dialog.vbox.pack_start(gtk.Label('The rootfe tarball was created in '+self.tarball))
+        dialog.show_all()
+        result = dialog.run()
+        if result:
+            gtk-main_quit()
 
     def run_tasksel(self, widget):
         self.tasks = Popen(["/usr/lib/rootstock/rootstock-tasksel"], stdout=PIPE).communicate()[0].rstrip()
