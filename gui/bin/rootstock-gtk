@@ -3,11 +3,13 @@
 import pygtk
 pygtk.require('2.0')
 import gtk
+from subprocess import Popen,PIPE,call,STDOUT
 
 releases = ['lucid', 'karmic', 'jaunty']
 
 class MainWin:
     def __init__(self):
+        self.tasks = ""
         self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
         self.window.connect("destroy", self.destroy)
 
@@ -101,6 +103,7 @@ class MainWin:
         tasklabel = gtk.Label("Select an Ubuntu task")
         tasklabel.set_alignment(xalign=0, yalign=0.5)
         tasksel = gtk.Button("Run Tasksel")
+        tasksel.connect("clicked", self.run_tasksel)
         middle_table.attach(tasklabel, 0, 1, 2, 3)
         middle_table.attach(tasksel, 1, 2, 2, 3)
 
@@ -169,14 +172,16 @@ class MainWin:
             command.append(' --script '+str(self.scriptfile.get_filename()))
         command.append(' -i '+str(self.imgsize.get_value())+'G')
         if self.pkglistentry.get_text():
-            command.append(' -s '+self.pkglistentry.get_text())
-        #tasksel_value
+            command.append(' -s '+self.pkglistentry.get_text()+' '+str(self.tasks))
         if str(self.seedfile.get_filename()):
             command.append(' --manifest '+str(self.seedfile.get_filename()))
         if self.serialentry.get_text():
             command.append(' --serial '+self.serialentry.get_text())
         #print 'Target partition: '+self.partitionentry.get_text()
         print command
+
+    def run_tasksel(self, widget):
+        self.tasks = Popen(["/usr/lib/rootstock/rootstock-tasksel"], stdout=PIPE).communicate()[0].rstrip()
 
     def open_profile(self, widget):
         print 'open'
