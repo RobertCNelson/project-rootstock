@@ -219,12 +219,12 @@ class MainWin:
         while gtk.events_pending():
             gtk.main_iteration(True)
         self.window.set_sensitive(False)
-        prgwin = gtk.Window(gtk.WINDOW_TOPLEVEL)
-        prgwin.set_transient_for(self.window)
-        prgwin.connect("destroy", self.close_progress)
-        prgwin.set_title(_('Building rootfs'))
+        self.prgwin = gtk.Window(gtk.WINDOW_TOPLEVEL)
+        self.prgwin.set_transient_for(self.window)
+        self.prgwin.connect("destroy", self.close_progress)
+        self.prgwin.set_title(_('Building rootfs'))
 
-        prgwin.set_size_request(300, 80)
+        self.prgwin.set_size_request(300, 80)
 
         hbox = gtk.HBox(False, 5)
         vbox = gtk.VBox(False, 5)
@@ -234,49 +234,47 @@ class MainWin:
 
         self.closebut = gtk.Button(None, stock=gtk.STOCK_CANCEL)
         self.closebut.connect("clicked", self.close_progress)
-        dummy = gtk.Label()
-        hbox.pack_start(dummy, True, True, 5)
+        self.progresslabel = gtk.Label()
+        self.progresslabel.set_alignment(xalign=0, yalign=0.5)
+        hbox.pack_start(self.progresslabel, True, True, 5)
         hbox.pack_start(self.closebut, False, False, 5)
 
         vbox.pack_start(hbox, False, False, 5)
 
-        prgwin.add(vbox)
-        prgwin.show_all()
+        self.prgwin.add(vbox)
+        self.prgwin.show_all()
 
     def run_command(self, command):
         cmdstr = ""
         lines = 1.0
         for item in command:
             cmdstr=cmdstr+' '+item
-        output = Popen([cmdstr], stdout=PIPE, stderr=STDOUT, shell=True)
+        output = Popen([cmdstr], stdout=PIPE, stderr=None, shell=True)
         self.rootstockpid = output.pid
-        while output.stdout.readline():
-            line = output.stdout.readline().strip()
+        while output.poll() is None:
             while gtk.events_pending():
                 gtk.main_iteration(True)
-            self.progress.set_fraction(float(lines/1000))
-            self.progress.set_text(line)
-            if line.startswith("I: ARM rootfs created"):
-                print line
-                self.tarball = line.split('/')[1]
-                self.close_progress
-                self.success
-            elif line.startswith('Kernel panic'):
-                self.close_progress
-                self.error('rootstock died, please see the log')
+            line = output.stdout.readline()
+            self.progresslabel.set_text(line[0:40].strip())
+            self.progress.set_fraction(float(lines/5000))
             lines += 1
-        pid, sts = os.waitpid(output.pid, 0)
+            if line.startswith('I: ARM rootfs created'):
+                self.prgwin.hide()
+                self.tarball = line.split('as')[1]
+                break
         self.progress.set_fraction(1.0)
-        if sts != 0:
-            self.error('rootstock died')
-            print "rootstock died !"
+        if output.poll() != 0:
+            self.prgwin.hide()
+            self.error('rootstock died with error code: '+str(output.poll()))
+        else:
+            self.success
 
     def close_progress(self, widget):
         while gtk.events_pending():
             gtk.main_iteration(True)
-        if self.rootstockpid:
-            os.kill(self.rootstockpid+1, 6)
-            pid, sts = os.waitpid(self.rootstockpid, 0)
+        if self.rootstockpid+1:
+            try: os.kill(self.rootstockpid+1, 6)
+            except: pass
             widget.get_parent_window().hide()
             self.window.set_sensitive(True)
         else:
@@ -299,11 +297,11 @@ class MainWin:
                 self.window,
                 gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
                 (gtk.STOCK_OK, gtk.RESPONSE_ACCEPT))
-        dialog.vbox.pack_start(gtk.Label('The rootfe tarball was created in '+self.tarball))
+        dialog.vbox.pack_start(gtk.Label('The rootfs tarball was created in '+self.tarball))
         dialog.show_all()
         result = dialog.run()
         if result:
-            gtk-main_quit()
+            gtk.main_quit()
 
     def run_tasksel(self, widget):
         self.tasks = Popen(["/usr/lib/rootstock/rootstock-tasksel"], stdout=PIPE).communicate()[0].rstrip()
