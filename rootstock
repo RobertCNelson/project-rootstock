@@ -60,13 +60,13 @@ cleanup()
 
       # unmount loop mount
       if [ "$(mount| grep ${MOUNTPOINT})" ];then
-          umount $MOUNTPOINT
+          umount -l $MOUNTPOINT
       fi
 
       # unmount tmpfs for swap
       if [ -n "$TMPMOUNT" ];then
           if $(mount |grep -q $TMPMOUNT);then
-              umount $TMPMOUNT
+              umount -l $TMPMOUNT
           fi
       fi
 
