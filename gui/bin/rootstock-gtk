@@ -29,6 +29,7 @@ import gettext
 from gettext import gettext as _
 
 import os
+import fcntl
 
 releases = ['lucid', 'karmic', 'jaunty']
 
@@ -247,27 +248,36 @@ class MainWin:
     def run_command(self, command):
         cmdstr = ""
         lines = 1.0
+        tarball = ''
         for item in command:
             cmdstr=cmdstr+' '+item
         output = Popen([cmdstr], stdout=PIPE, stderr=None, shell=True)
+        flags = fcntl.fcntl(output.stdout, fcntl.F_GETFL)
+        fcntl.fcntl(output.stdout, fcntl.F_SETFL, flags | os.O_NONBLOCK)
+
         self.rootstockpid = output.pid
+
         while output.poll() is None:
             while gtk.events_pending():
                 gtk.main_iteration(True)
-            line = output.stdout.readline()
-            self.progresslabel.set_text(line[0:40].strip())
-            self.progress.set_fraction(float(lines/5000))
-            lines += 1
-            if line.startswith('I: ARM rootfs created'):
-                self.prgwin.hide()
-                self.tarball = line.split('as')[1]
-                break
-        self.progress.set_fraction(1.0)
-        if output.poll() != 0:
-            self.prgwin.hide()
-            self.error('rootstock died with error code: '+str(output.poll()))
-        else:
-            self.success
+            try:
+                line = output.stdout.readline()
+                print line.strip()
+                self.progresslabel.set_text(line[0:40].strip())
+                self.progress.set_fraction(float(lines/5000))
+                lines += 1
+                if line.startswith('I: ARM rootfs created'):
+                    self.prgwin.hide()
+                    tarball = line.split('as')[1]
+                    break
+            except: pass
+        self.prgwin.hide()
+        self.window.set_sensitive(True)
+        retval = output.returncode
+        if tarball != '':
+            self.success(tarball)
+        elif retval != 0:
+            self.error('rootstock died with error code: '+str(retval))
 
     def close_progress(self, widget):
         while gtk.events_pending():
@@ -292,12 +302,12 @@ class MainWin:
         if result:
             gtk.main_quit()
 
-    def success(self):
+    def success(self, tarball):
         dialog = gtk.Dialog('Successfully built rootfs',
                 self.window,
                 gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
                 (gtk.STOCK_OK, gtk.RESPONSE_ACCEPT))
-        dialog.vbox.pack_start(gtk.Label('The rootfs tarball was created in '+self.tarball))
+        dialog.vbox.pack_start(gtk.Label('The rootfs tarball was created in '+tarball))
         dialog.show_all()
         result = dialog.run()
         if result:
