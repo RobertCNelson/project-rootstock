@@ -63,7 +63,7 @@ class GUI:
         """ Destroy callback to shutdown the app """
         val = ""
         while len(retval):
-            val = val+' ^'+retval.pop()
+            val = val+' '+retval.pop()+'^'
         print val.lstrip()
         gtk.main_quit()
         return
