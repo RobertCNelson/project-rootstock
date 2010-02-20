@@ -32,6 +32,7 @@ import os
 import fcntl
 
 releases = ['lucid', 'karmic', 'jaunty']
+icon_theme = gtk.icon_theme_get_default()
 
 class MainWin:
     def __init__(self):
@@ -45,6 +46,12 @@ class MainWin:
         self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
         self.window.connect("destroy", self.destroy)
         self.window.set_size_request(400, 380)
+
+        try:
+            pixbuf = icon_theme.load_icon("rootstock_64", 24, 0)
+        except:
+            pass
+        gtk.window_set_default_icon_list(pixbuf)
 
         # the menubar
         mb = gtk.MenuBar()

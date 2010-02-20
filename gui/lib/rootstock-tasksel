@@ -25,7 +25,7 @@ import pygtk
 pygtk.require("2.0")
 import gtk, gobject
 
-iconpath="../images/rootstock_icon.png"
+icon_theme = gtk.icon_theme_get_default()
 retval = []
 
 class GUI:
@@ -34,7 +34,13 @@ class GUI:
         self.root.set_title("Select Tasks for installation")
         self.root.connect("destroy", self.destroy_cb)
         self.root.set_default_size(400, 300)
-        self.root.set_icon_from_file(iconpath)
+
+        try:
+            pixbuf = icon_theme.load_icon("rootstock_64", 24, 0)
+        except:
+            pass
+        gtk.window_set_default_icon_list(pixbuf)
+
         self.scroll = gtk.ScrolledWindow(hadjustment=None, vadjustment=None)
         self.box = gtk.VBox()
         self.box2 = gtk.VBox()
@@ -63,7 +69,7 @@ class GUI:
         """ Destroy callback to shutdown the app """
         val = ""
         while len(retval):
-            val = val+' '+retval.pop()+'^'
+            val = val+' ^'+retval.pop()
         print val.lstrip()
         gtk.main_quit()
         return
