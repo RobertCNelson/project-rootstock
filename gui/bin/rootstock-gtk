@@ -30,9 +30,18 @@ from gettext import gettext as _
 
 import os
 import fcntl
+import shutil
 
 releases = ['lucid', 'karmic', 'jaunty']
 icon_theme = gtk.icon_theme_get_default()
+
+home = os.environ['HOME']
+try:
+    tmpdir = os.environ['TMPDIR']
+except:
+    tmpdir = '/tmp'
+
+os.chdir(tmpdir)
 
 class MainWin:
     def __init__(self):
@@ -202,7 +211,7 @@ class MainWin:
         self.xmirrorentry.set_sensitive(self.xmirror.get_active())
 
     def run_build(self, widget):
-        command = ['cd /tmp;','rootstock -f rootstockfs']
+        command = ['rootstock -f rootstockfs']
         if self.mirrorentry.get_text():
             command.append(' -m '+self.mirrorentry.get_text())
         if self.xmirrorentry.get_text():
@@ -274,9 +283,9 @@ class MainWin:
                 self.progress.set_fraction(float(lines/5000))
                 lines += 1
                 if line.startswith('I: ARM rootfs created'):
-                    self.prgwin.hide()
-                    tarball = line.split('as')[1]
-                    break
+                    tarball = line.split('as ')[1].split('/')[-1].strip()
+                if line.startswith('I: A logfile was saved'):
+                    self.logfile = line.split(' as ')[1].split('/')[-1].strip()
             except: pass
         self.prgwin.hide()
         self.window.set_sensitive(True)
@@ -310,11 +319,16 @@ class MainWin:
             gtk.main_quit()
 
     def success(self, tarball):
+        shutil.move(tmpdir+'/'+tarball, home)
+        try:
+            shutil.move(tmpdir+'/'+self.logfile, home)
+        except:
+            pass
         dialog = gtk.Dialog('Successfully built rootfs',
                 self.window,
                 gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
                 (gtk.STOCK_OK, gtk.RESPONSE_ACCEPT))
-        dialog.vbox.pack_start(gtk.Label('The rootfs tarball was created in '+tarball))
+        dialog.vbox.pack_start(gtk.Label('The rootfs tarball was created in '+home+'/'+tarball+',\na logfile '+self.logfile+' was saved in the same place'))
         dialog.show_all()
         result = dialog.run()
         if result:
