@@ -196,7 +196,7 @@ class MainWin:
 
         # toplevel layout
         mainbox = gtk.VBox(False, 0)
-        mainbox.pack_start(mb, False, False, 5)
+        mainbox.pack_start(mb, False, False, 0)
         mainbox.pack_start(tf, False, False, 5)
         mainbox.pack_start(mf, False, False, 5)
         mainbox.pack_start(bf, False, False, 5)
@@ -293,7 +293,7 @@ class MainWin:
         if tarball != '':
             self.success(tarball)
         elif retval != 0:
-            self.error('rootstock died with error code: '+str(retval))
+            self.error(_('Something went wrong, rootstock died with error code: %i') % retval)
 
     def close_progress(self, widget):
         while gtk.events_pending():
@@ -308,11 +308,23 @@ class MainWin:
             self.window.set_sensitive(True)
 
     def error(self, string):
-        dialog = gtk.Dialog('Error',
+        string = _('<b>Error:</b>\n %s') % string
+        if self.logfile:
+            shutil.move(tmpdir+'/'+self.logfile, home)
+            logfile = '%s/%s' % (home, self.logfile)
+            logstr = _(' A logfile was saved in %s\n') % logfile
+            string = '%s\n%s' % (string, logstr)
+        dialog = gtk.Dialog(_('Error'),
                 self.window,
                 gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
                 (gtk.STOCK_OK, gtk.RESPONSE_ACCEPT))
-        dialog.vbox.pack_start(gtk.Label(string))
+        hbox = gtk.HBox(False, 0)
+        image = gtk.image_new_from_stock(gtk.STOCK_DIALOG_ERROR, gtk.ICON_SIZE_DIALOG)
+        label = gtk.Label()
+        label.set_markup(string)
+        hbox.pack_start(image, False, False, 0)
+        hbox.pack_start(label, False, False, 5)
+        dialog.vbox.pack_start(hbox)
         dialog.show_all()
         result = dialog.run()
         if result:
@@ -324,11 +336,20 @@ class MainWin:
             shutil.move(tmpdir+'/'+self.logfile, home)
         except:
             pass
-        dialog = gtk.Dialog('Successfully built rootfs',
+        header = _('<b>Build successful:</b>\n')
+        tarstr = _('The filesystem archive was created in %s as:\n <b>%s</b>\n\n') % (home, tarball)
+        string = _('%s %s The logfile of this build, %s\n was saved in the same directory.') % (header, tarstr, self.logfile)
+        dialog = gtk.Dialog(_('Successfully Built Root Filesystem'),
                 self.window,
                 gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
                 (gtk.STOCK_OK, gtk.RESPONSE_ACCEPT))
-        dialog.vbox.pack_start(gtk.Label('The rootfs tarball was created in '+home+'/'+tarball+',\na logfile '+self.logfile+' was saved in the same place'))
+        hbox = gtk.HBox(False, 0)
+        image = gtk.image_new_from_stock(gtk.STOCK_DIALOG_INFO, gtk.ICON_SIZE_DIALOG)
+        label = gtk.Label()
+        label.set_markup(string)
+        hbox.pack_start(image, False, False, 0)
+        hbox.pack_start(label, False, False, 5)
+        dialog.vbox.pack_start(hbox)
         dialog.show_all()
         result = dialog.run()
         if result:
