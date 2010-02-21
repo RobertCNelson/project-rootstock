@@ -53,7 +53,8 @@ class MainWin:
         self.tasks = ""
         self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
         self.window.connect("destroy", self.destroy)
-        self.window.set_size_request(400, 380)
+        self.window.set_default_size(400, 380)
+        self.window.set_title(_('Build Root Filesystem'))
 
         self.outdir = os.environ['HOME']
 
@@ -95,9 +96,16 @@ class MainWin:
 
         # topframe
         tf = gtk.Frame()
-        tf.set_label(_('General Options'))
+        tflbl = gtk.Label()
+        tf.set_label_widget(tflbl)
+        tflbl.set_markup(_('<b>General Options</b>'))
+
         top_table = gtk.Table(5, 2, False)
-        tf.add(top_table)
+        top_hbox = gtk.HBox(True, 0)
+        top_vbox = gtk.VBox(True, 0)
+        top_hbox.pack_start(top_vbox, False, True, 5)
+        top_vbox.pack_start(top_table, False, True, 5)
+        tf.add(top_hbox)
 
         mirrorlabel = gtk.Label(_('Mirror'))
         mirrorlabel.set_alignment(xalign=0, yalign=0.5)
@@ -144,9 +152,16 @@ class MainWin:
 
         # middleframe
         mf = gtk.Frame()
-        mf.set_label(_('Options for packages to install'))
+        mflbl = gtk.Label()
+        mf.set_label_widget(mflbl)
+        mflbl.set_markup(_('<b>Options for packages to install</b>'))
+
         middle_table = gtk.Table(3, 2, False)
-        mf.add(middle_table)
+        mid_hbox = gtk.HBox(True, 0)
+        mid_vbox = gtk.VBox(True, 0)
+        mid_hbox.pack_start(mid_vbox, False, True, 5)
+        mid_vbox.pack_start(middle_table, False, True, 5)
+        mf.add(mid_hbox)
 
         pkglistlabel = gtk.Label(_('Use a list of packages'))
         pkglistlabel.set_alignment(xalign=0, yalign=0.5)
@@ -171,9 +186,16 @@ class MainWin:
 
         # bottomframe
         bf = gtk.Frame()
-        bf.set_label(_('Advanced Options'))
+        bflbl = gtk.Label()
+        bf.set_label_widget(bflbl)
+        bflbl.set_markup(_('<b>Advanced Options</b>'))
+
         bottom_table = gtk.Table(2, 2, False)
-        bf.add(bottom_table)
+        bot_hbox = gtk.HBox(True, 0)
+        bot_vbox = gtk.VBox(True, 0)
+        bot_hbox.pack_start(bot_vbox, False, True, 5)
+        bot_vbox.pack_start(bottom_table, False, True, 5)
+        bf.add(bot_hbox)
 
         seriallabel = gtk.Label(_('Use serial device in rootfs'))
         seriallabel.set_alignment(xalign=0, yalign=0.5)
@@ -188,7 +210,8 @@ class MainWin:
         #bottom_table.attach(self.partitionentry, 1, 2, 2, 3)
 
         # buttonbar
-        bb = gtk.HBox(False,0)
+        bb = gtk.HBox(False, 0)
+        bbhbox = gtk.HBox(False, 0)
 
         gtk.stock_add([(gtk.STOCK_EXECUTE, _('Build'), 0, 0, "")])
         button1 = gtk.Button(None, stock=gtk.STOCK_EXECUTE)
@@ -199,17 +222,24 @@ class MainWin:
 
         bb.pack_end(button1, False, False, 0)
         bb.pack_end(button2, False, False, 0)
+        bbhbox.pack_end(bb, False, False, 5)
 
         # toplevel layout
         mainbox = gtk.VBox(False, 0)
-        mainbox.pack_start(mb, False, False, 0)
+        mainboxv = gtk.VBox(False, 0)
+        mainboxh = gtk.HBox(True, 0)
+
         mainbox.pack_start(tf, False, False, 5)
         mainbox.pack_start(mf, False, False, 5)
         mainbox.pack_start(bf, False, False, 5)
-        mainbox.pack_start(bb, False, False, 5)
 
-        self.window.add(mainbox)
+        mainboxh.pack_start(mainbox, False, True, 5)
 
+        mainboxv.pack_start(mb, False, False, 0)
+        mainboxv.pack_start(mainboxh, False, True, 5)
+        mainboxv.pack_end(bbhbox, False, False, 5)
+
+        self.window.add(mainboxv)
         self.window.show_all()
 
     def set_sensitivity(self, widget):
@@ -247,7 +277,7 @@ class MainWin:
         self.prgwin.connect("destroy", self.close_progress)
         self.prgwin.set_title(_('Building rootfs'))
 
-        self.prgwin.set_size_request(300, 80)
+        self.prgwin.set_default_size(300, 80)
 
         hbox = gtk.HBox(False, 5)
         vbox = gtk.VBox(False, 5)
