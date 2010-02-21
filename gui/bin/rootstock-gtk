@@ -35,7 +35,6 @@ import shutil
 releases = ['lucid', 'karmic', 'jaunty']
 icon_theme = gtk.icon_theme_get_default()
 
-home = os.environ['HOME']
 try:
     tmpdir = os.environ['TMPDIR']
 except:
@@ -56,6 +55,8 @@ class MainWin:
         self.window.connect("destroy", self.destroy)
         self.window.set_size_request(400, 380)
 
+        self.outdir = os.environ['HOME']
+
         try:
             pixbuf = icon_theme.load_icon("rootstock_64", 24, 0)
         except:
@@ -67,6 +68,11 @@ class MainWin:
         filemenu = gtk.Menu()
         filem = gtk.MenuItem(_('File'))
         filem.set_submenu(filemenu)
+
+        gtk.stock_add([(gtk.STOCK_DIRECTORY, _('Set Target Directory'), 0, 0, "")])
+        sel_dir = gtk.ImageMenuItem(gtk.STOCK_DIRECTORY, None)
+        sel_dir.connect("activate", self.select_dir)
+        filemenu.append(sel_dir)
 
         gtk.stock_add([(gtk.STOCK_OPEN, _('Load Profile'), 0, 0, "")])
         open_prof = gtk.ImageMenuItem(gtk.STOCK_OPEN, None)
@@ -310,8 +316,9 @@ class MainWin:
     def error(self, string):
         string = _('<b>Error:</b>\n %s') % string
         if self.logfile:
-            shutil.move(tmpdir+'/'+self.logfile, home)
-            logfile = '%s/%s' % (home, self.logfile)
+            if tmpdir != self.outdir:
+                shutil.move(tmpdir+'/'+self.logfile, self.outdir)
+            logfile = '%s/%s' % (self.outdir, self.logfile)
             logstr = _(' A logfile was saved in %s\n') % logfile
             string = '%s\n%s' % (string, logstr)
         dialog = gtk.Dialog(_('Error'),
@@ -331,13 +338,14 @@ class MainWin:
             gtk.main_quit()
 
     def success(self, tarball):
-        shutil.move(tmpdir+'/'+tarball, home)
-        try:
-            shutil.move(tmpdir+'/'+self.logfile, home)
-        except:
-            pass
+        if tmpdir != self.outdir:
+            shutil.move(tmpdir+'/'+tarball, self.outdir)
+            try:
+                shutil.move(tmpdir+'/'+self.logfile, self.outdir)
+            except:
+                pass
         header = _('<b>Build successful:</b>\n')
-        tarstr = _('The filesystem archive was created in %s as:\n <b>%s</b>\n\n') % (home, tarball)
+        tarstr = _('The filesystem archive was created in %s as:\n <b>%s</b>\n\n') % (self.outdir, tarball)
         string = _('%s %s The logfile of this build, %s\n was saved in the same directory.') % (header, tarstr, self.logfile)
         dialog = gtk.Dialog(_('Successfully Built Root Filesystem'),
                 self.window,
@@ -357,6 +365,13 @@ class MainWin:
 
     def run_tasksel(self, widget):
         self.tasks = Popen(["/usr/lib/rootstock/rootstock-tasksel"], stdout=PIPE).communicate()[0].rstrip()
+
+    def select_dir(self, widget):
+        chooser = gtk.FileChooserDialog(_('Select Target Directory'), self.window, gtk.FILE_CHOOSER_ACTION_SELECT_FOLDER, (gtk.STOCK_OK, gtk.RESPONSE_OK), None)
+        chooser.set_current_folder_uri('file://'+self.outdir)
+        if chooser.run():
+            self.outdir = chooser.get_current_folder_uri().split('file://')[1]
+            chooser.destroy()
 
     def open_profile(self, widget):
         print 'open'
