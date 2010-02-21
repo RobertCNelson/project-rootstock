@@ -318,7 +318,7 @@ class MainWin:
                 self.window,
                 gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
                 (gtk.STOCK_OK, gtk.RESPONSE_ACCEPT))
-        hbox = gtk.HBox(False, 0)
+        hbox = gtk.HBox(False, 5)
         image = gtk.image_new_from_stock(gtk.STOCK_DIALOG_ERROR, gtk.ICON_SIZE_DIALOG)
         label = gtk.Label()
         label.set_markup(string)
@@ -343,7 +343,7 @@ class MainWin:
                 self.window,
                 gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
                 (gtk.STOCK_OK, gtk.RESPONSE_ACCEPT))
-        hbox = gtk.HBox(False, 0)
+        hbox = gtk.HBox(False, 5)
         image = gtk.image_new_from_stock(gtk.STOCK_DIALOG_INFO, gtk.ICON_SIZE_DIALOG)
         label = gtk.Label()
         label.set_markup(string)
