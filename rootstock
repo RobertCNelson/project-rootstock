@@ -187,7 +187,7 @@ create_raw_image()
 {
     [ $QUIET ] || echo "I: Creating temporary Image"
     LANG=C qemu-img create $IMAGENAME $IMAGESIZE >$LOG 2>&1
-    LANG=C mkfs.ext2 -F $IMAGENAME >>$LOG 2>&1
+    LANG=C mkfs.ext3 -F $IMAGENAME >>$LOG 2>&1
 }
 
 mount_image()
@@ -872,7 +872,7 @@ if [ -x /rootstock-user-script ]; then
     rm -f /rootstock-user-script
 fi
 
-mount -n -o remount,ro -t ext2 /dev/sda / || true
+mount -n -o remount,ro -t ext3 /dev/sda / || true
 
 rm /bin/installer && reboot -fp
 
