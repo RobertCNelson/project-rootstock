@@ -799,6 +799,7 @@ cat > $BUILDDIR/installer <<EOF
 #!/bin/bash
 set -e
 
+export MALLOC_CHECK_=0 # workaround for LP: #520465
 export PATH
 export LC_ALL=C
 export DEBIAN_FRONTEND=noninteractive
