@@ -188,6 +188,7 @@ create_raw_image()
     [ $QUIET ] || echo "I: Creating temporary Image"
     LANG=C qemu-img create $IMAGENAME $IMAGESIZE >$LOG 2>&1
     LANG=C mkfs.ext3 -F $IMAGENAME >>$LOG 2>&1
+    VOLID=$(blkid -o value $IMAGENAME|head -1)
 }
 
 mount_image()
@@ -775,6 +776,9 @@ fi
 
 # basic fstab
 echo "proc /proc proc defaults 0 0" >$MOUNTPOINT/etc/fstab
+if [ "$KEEPIMAGE" ];then
+    echo "UUID=${VOLID} / ext3 errors=remount-ro 0 1" >>$MOUNTPOINT/etc/fstab
+fi
 
 # set up basic networking
 NETWORKDIR="$MOUNTPOINT/etc/network"
