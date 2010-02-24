@@ -777,7 +777,7 @@ fi
 # basic fstab
 echo "proc /proc proc defaults 0 0" >$MOUNTPOINT/etc/fstab
 if [ "$KEEPIMAGE" ];then
-    echo "UUID=${VOLID} / ext3 errors=remount-ro 0 1" >>$MOUNTPOINT/etc/fstab
+    echo "UUID=${VOLID} / auto errors=remount-ro 0 1" >>$MOUNTPOINT/etc/fstab
 fi
 
 # set up basic networking
