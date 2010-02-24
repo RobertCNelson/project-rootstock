@@ -392,7 +392,7 @@ get_vm_kernel()
             KERNEL="http://people.canonical.com/~ogra//arm/qemu/kernel/vmlinuz-2.6.28-versatile"
         fi
         # below code is disabled temporary until lucid versatile package is fixed.
-        if [ "$DIST" = "xxxlucid" ];then
+        if [ "$DIST" = "lucid" ];then
             SERVER="http://ports.ubuntu.com"
             PKG_FILE="Packages.gz"
             PKGS="${SERVER}/dists/${DIST}/main/binary-armel/${PKG_FILE}"
@@ -401,7 +401,7 @@ get_vm_kernel()
 
             wget -q -O "${BUILDDIR}/kernel-tmpdir/${PKG_FILE}" $PKGS
 
-            KERNEL_DEB=$(zcat "${BUILDDIR}/kernel-tmpdir/${PKG_FILE}"|grep-dctrl linux-image -a versatile -s Filename -|sed 's/^.* //')
+            KERNEL_DEB=$(zcat "${BUILDDIR}/kernel-tmpdir/${PKG_FILE}"|grep-dctrl linux-image -a versatile -s Filename -|sed 's/^.* //'|grep 'linux-image-2')
 
             wget -q -O "${BUILDDIR}/kernel-tmpdir/$(basename $KERNEL_DEB)" $SERVER/$KERNEL_DEB
 
