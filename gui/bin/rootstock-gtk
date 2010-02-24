@@ -326,14 +326,43 @@ class MainWin:
 
         self.rootstockpid = output.pid
 
+        self.progresslabel.set_text(_('Preparing environment for rootfs build ...'))
+
         while output.poll() is None:
             while gtk.events_pending():
                 gtk.main_iteration(True)
             try:
                 line = output.stdout.readline()
                 print line.strip()
-                self.progresslabel.set_text(line[0:40].strip())
-                self.progress.set_fraction(float(lines/5000))
+                if line.startswith('I: Running first stage'):
+                    ptext = _('Running first stage of build process ...')
+                    lines = 1.0
+                    frac = 850.0
+                if line.startswith('I: Switching to Virtual Machine'):
+                    ptext = _('Running second stage package install in virtual machine ...')
+                    lines = 1.0
+                    frac = 1000.0
+                if line.startswith('I: Enabling firstboot configuration'):
+                    ptext = _('Enabling configuration of rootfs on first boot ...')
+                    lines = 1.0
+                    frac = 350.0
+                if line.startswith('I: First stage install done'):
+                    lines = 850.0
+                if line.startswith('I: Virtual Machine done'):
+                    lines = 350.0
+                if line.startswith('I: Creating tarball from rootfs'):
+                    ptext = _('Creating final tarball, please wait ...')
+                    lines = 1.0
+                    frac = 2
+                if line.startswith('I: Cleaning up...'):
+                    ptext = _('Done, cleaning up build environment ...')
+                    lines = 1.0
+                    frac = 1
+                prog_count = float(lines/frac)
+                if prog_count > 1.0:
+                    prog_count = 1.0
+                self.progress.set_fraction(prog_count)
+                self.progresslabel.set_text(ptext)
                 lines += 1
                 if line.startswith('I: ARM rootfs created'):
                     tarball = line.split('as ')[1].split('/')[-1].strip()
