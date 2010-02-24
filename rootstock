@@ -848,6 +848,8 @@ ${APT_UPDATE}
 
 ${PACKAGE_CLEANUP}
 
+PKGCOUNT=\$(LANG=C apt-get -s install ${SELECTION} |grep "newly installed"|cut -d ',' -f2|tr -d ' [a-z]')
+echo "packagecount=\${PKGCOUNT:-1}"
 [ -z "${SELECTION}" ] || apt-get -y ${APT_FORCE} install ${SELECTION}
 
 ${KERNEL_IMAGE_CMD}
