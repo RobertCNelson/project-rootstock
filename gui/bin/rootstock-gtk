@@ -339,11 +339,19 @@ class MainWin:
                     lines = 1.0
                     frac = 850.0
                 if line.startswith('I: Switching to Virtual Machine'):
-                    ptext = _('Running second stage package install in virtual machine ...')
+                    ptext = _('Configuring virtual machine for second stage processing ...')
                     lines = 1.0
-                    frac = 1000.0
+                    frac = 40.0
+                if line.startswith('packagecount='):
+                    lines = 1.0
+                    ptext = _('Running second stage package install in virtual machine ...')
+                    pkgcount = float(line.split('=')[1])
+                    if pkgcount > 0.0:
+                        frac = (pkgcount * 4.0) + 500
+                    else:
+                        frac = 1.0
                 if line.startswith('I: Enabling firstboot configuration'):
-                    ptext = _('Enabling configuration of rootfs on first boot ...')
+                    ptext = _('Enabling first boot user configuration assistant ...')
                     lines = 1.0
                     frac = 350.0
                 if line.startswith('I: First stage install done'):
@@ -391,12 +399,15 @@ class MainWin:
 
     def error(self, string):
         string = _('<b>Error:</b>\n %s') % string
-        if self.logfile:
-            if tmpdir != self.outdir:
-                shutil.move(tmpdir+'/'+self.logfile, self.outdir)
-            logfile = '%s/%s' % (self.outdir, self.logfile)
-            logstr = _(' A logfile was saved in %s\n') % logfile
-            string = '%s\n%s' % (string, logstr)
+        try:
+            if self.logfile:
+                if tmpdir != self.outdir:
+                    shutil.move(tmpdir+'/'+self.logfile, self.outdir)
+                logfile = '%s/%s' % (self.outdir, self.logfile)
+                logstr = _(' A logfile was saved in %s\n') % logfile
+                string = '%s\n%s' % (string, logstr)
+        except:
+            pass
         dialog = gtk.Dialog(_('Error'),
                 self.window,
                 gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
