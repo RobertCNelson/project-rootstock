@@ -284,6 +284,10 @@ run_vm()
     [ $QUIET ] || echo "I: Getting Virtual Machine kernel from the server"
     get_vm_kernel
 
+    [ $QUIET ] || echo "I: Converting filesystem image to an automatically growing one"
+    qemu-img convert -O qcow2 ${IMAGENAME} ${IMAGENAME}.qcow
+    rm ${IMAGENAME}
+
     mkfifo $QEMUFIFO
 
     [ $QUIET ] || echo "I: Switching to Virtual Machine for second stage processing"
@@ -291,7 +295,7 @@ run_vm()
     if [ -n "$SWAPFILE" ];then
         SWAPDEV="-hdb $SWAPFILE"
     fi
-    QEMUOPTS="-M versatilepb ${VMCPU:+-cpu $VMCPU} -kernel ${BUILDDIR}/qemu-vmlinuz -no-reboot -nographic -pidfile ${QEMUPID} -hda ${IMAGENAME} ${SWAPDEV} -m 256"
+    QEMUOPTS="-M versatilepb ${VMCPU:+-cpu $VMCPU} -kernel ${BUILDDIR}/qemu-vmlinuz -no-reboot -nographic -pidfile ${QEMUPID} -hda ${IMAGENAME}.qcow ${SWAPDEV} -m 256"
     APPEND="console=ttyAMA0,115200n8 root=/dev/sda rw mem=256M devtmpfs.mount=0 init=/bin/installer quiet"
 
     qemu-system-arm $QEMUOPTS -append "${APPEND}" >$QEMUFIFO 2>&1 &
@@ -316,6 +320,10 @@ run_vm()
     rm -f $QEMUPID
 
     [ $QUIET ] || echo "I: Virtual Machine done"
+
+    [ $QUIET ] || echo "I: Converting filesystem image to raw format"
+    qemu-img convert -O raw ${IMAGENAME}.qcow ${IMAGENAME}
+    rm ${IMAGENAME}.qcow
 }
 
 setup_serial()
@@ -473,7 +481,7 @@ roll_tarball()
 
 save_qemu_img()
 {
-    cp $IMAGENAME $DIR
+    qemu-img convert -O qcow2 ${IMAGENAME} $DIR/$(basename ${IMAGENAME})
     echo "I: Qemu image saved as $DIR/qemu-armel-$STAMP.img"
 }
 
