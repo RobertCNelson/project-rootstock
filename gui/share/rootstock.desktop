@@ -5,4 +5,4 @@ Terminal=false
 Icon=rootstock_64
 Exec=su-to-root -X --preserve-env --description /usr/share/applications/rootstock.desktop -c rootstock-gtk
 Name=RootStock
-Categories=GNOME;GTK;Utility
+Categories=System;Settings;GTK;HardwareSettings;
