@@ -78,12 +78,12 @@ class MainWin:
         gtk.stock_add([(gtk.STOCK_OPEN, _('Load Profile'), 0, 0, "")])
         open_prof = gtk.ImageMenuItem(gtk.STOCK_OPEN, None)
         open_prof.connect("activate", self.open_profile)
-        filemenu.append(open_prof)
+        #filemenu.append(open_prof)
 
         gtk.stock_add([(gtk.STOCK_SAVE, _('Save Profile'), 0, 0, "")])
         save_prof = gtk.ImageMenuItem(gtk.STOCK_SAVE, None)
         save_prof.connect("activate", self.save_profile)
-        filemenu.append(save_prof)
+        #filemenu.append(save_prof)
 
         sep = gtk.SeparatorMenuItem()
         filemenu.append(sep)
