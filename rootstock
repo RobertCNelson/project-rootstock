@@ -473,6 +473,7 @@ roll_tarball()
 
 save_qemu_img()
 {
+    chmod 666 $IMAGENAME
     cp $IMAGENAME $DIR
     echo "I: Qemu image saved as $DIR/qemu-armel-$STAMP.img"
 }
