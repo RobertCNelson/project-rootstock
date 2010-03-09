@@ -753,6 +753,15 @@ if [ "$KEEPIMAGE" ];then
     echo "UUID=${VOLID} / auto errors=remount-ro 0 1" >>$MOUNTPOINT/etc/fstab
 fi
 
+if [ -e /etc/apt/apt.conf.d/proxy ];then
+    mkdir -p $MOUNTPOINT/etc/apt/apt.conf.d
+    cp /etc/apt/apt.conf.d/proxy $MOUNTPOINT/etc/apt/apt.conf.d/proxy
+fi
+
+if [ "$http_proxy" ];then
+    PROXY=$http_proxy
+fi
+
 # set up basic networking
 NETWORKDIR="$MOUNTPOINT/etc/network"
 INTERFACES="$NETWORKDIR/interfaces"
@@ -781,6 +790,7 @@ export MALLOC_CHECK_=0 # workaround for LP: #520465
 export PATH
 export LC_ALL=C
 export DEBIAN_FRONTEND=noninteractive
+export http_proxy="${PROXY}"
 
 ${SECOND_STAGE}
 
