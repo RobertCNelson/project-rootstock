@@ -152,8 +152,8 @@ extra parameters:
     Quiet operation, only write to log
 
 advanced options:
---kernel-image
-    install board specfic kernel image inside rootfs
+--kernel-image <http url to kernel .deb>
+    install board specfic kernel package from http accessible deb package inside rootfs
 --copy-package-cache
     save a snapshot of all packages used for a build locally to re-use them
     in a subsequent offline build with the --restore-package-cache option
@@ -284,10 +284,6 @@ run_vm()
     [ $QUIET ] || echo "I: Getting Virtual Machine kernel from the server"
     get_vm_kernel
 
-    [ $QUIET ] || echo "I: Converting filesystem image to an automatically growing one"
-    qemu-img convert -O qcow2 ${IMAGENAME} ${IMAGENAME}.qcow
-    rm ${IMAGENAME}
-
     mkfifo $QEMUFIFO
 
     [ $QUIET ] || echo "I: Switching to Virtual Machine for second stage processing"
@@ -295,7 +291,7 @@ run_vm()
     if [ -n "$SWAPFILE" ];then
         SWAPDEV="-hdb $SWAPFILE"
     fi
-    QEMUOPTS="-M versatilepb ${VMCPU:+-cpu $VMCPU} -kernel ${BUILDDIR}/qemu-vmlinuz -no-reboot -nographic -pidfile ${QEMUPID} -hda ${IMAGENAME}.qcow ${SWAPDEV} -m 256"
+    QEMUOPTS="-M versatilepb ${VMCPU:+-cpu $VMCPU} -kernel ${BUILDDIR}/qemu-vmlinuz -no-reboot -nographic -pidfile ${QEMUPID} -hda ${IMAGENAME} ${SWAPDEV} -m 256"
     APPEND="console=ttyAMA0,115200n8 root=/dev/sda rw mem=256M devtmpfs.mount=0 init=/bin/installer quiet"
 
     qemu-system-arm $QEMUOPTS -append "${APPEND}" >$QEMUFIFO 2>&1 &
@@ -320,10 +316,6 @@ run_vm()
     rm -f $QEMUPID
 
     [ $QUIET ] || echo "I: Virtual Machine done"
-
-    [ $QUIET ] || echo "I: Converting filesystem image to raw format"
-    qemu-img convert -O raw ${IMAGENAME}.qcow ${IMAGENAME}
-    rm ${IMAGENAME}.qcow
 }
 
 setup_serial()
@@ -481,7 +473,7 @@ roll_tarball()
 
 save_qemu_img()
 {
-    qemu-img convert -O qcow2 ${IMAGENAME} $DIR/$(basename ${IMAGENAME})
+    cp $IMAGENAME $DIR
     echo "I: Qemu image saved as $DIR/qemu-armel-$STAMP.img"
 }
 
@@ -678,6 +670,7 @@ while [ ! -z "$1" ]; do
             QUIET=1
             ;;
         --kernel-image)
+            checkparm $2
             KERNEL_IMAGE=1
             KERNEL_IMG="$2"
             ;;
