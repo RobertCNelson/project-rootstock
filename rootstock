@@ -474,7 +474,9 @@ roll_tarball()
 save_qemu_img()
 {
     cp $IMAGENAME $DIR
-    chmod 666 $DIR/qemu-armel-$STAMP.img
+    if [ "$SUDO_USER" ]; then
+        chown $SUDO_USER $DIR/qemu-armel-$STAMP.img
+    fi
     echo "I: Qemu image saved as $DIR/qemu-armel-$STAMP.img"
 }
 
