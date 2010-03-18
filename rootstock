@@ -548,6 +548,7 @@ fi
 if [ ! $(which qemu-system-arm) ];then
     echo "qemu not installed, please use:"
     echo "sudo apt-get install qemu"
+    echo "(or on ubuntu > karmic sudo apt-get install qemu-kvm-extras)"
     echo "to install the qemu package !"
     exit 1
 fi
