@@ -262,15 +262,15 @@ run_first_stage()
         cp $(which qemu-arm-static) $MOUNTPOINT/usr/bin/
         chroot $MOUNTPOINT debootstrap/debootstrap --second-stage >$DBFIFO 2>&1 &
         SECOND_STAGE=""
-    fi
-    echo $! > $DBPID
 
-    while read line; do
-        echo ${line} >>$LOG 2>&1
-        if [ ! "$QUIET" ];then
-            echo "${line}"
-        fi
-    done <$DBFIFO
+		echo $! > $DBPID
+		while read line; do
+			echo ${line} >>$LOG 2>&1
+			if [ ! "$QUIET" ];then
+				echo "${line}"
+			fi
+		done <$DBFIFO
+    fi
 
     rm -f $DBFIFO
     rm -f $DBPID
