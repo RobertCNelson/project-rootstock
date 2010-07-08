@@ -545,27 +545,6 @@ APT_FORCE=""
 CACHEDIR="/var/cache/rootstock/archives"
 EXRA_MIRROR_CMD=""
 
-# we need root
-if [ $(id -u) != 0 ];then
-    echo "must be run as root"
-    exit 2
-fi
-
-if [ ! $(which qemu-system-arm) ];then
-    echo "qemu not installed, please use:"
-    echo "sudo apt-get install qemu"
-    echo "(or on ubuntu > karmic sudo apt-get install qemu-kvm-extras)"
-    echo "to install the qemu package !"
-    exit 1
-fi
-
-if [ ! $(which debootstrap) ];then
-    echo "debootstrap not installed, please use:"
-    echo "sudo apt-get install debootstrap"
-    echo "to install the debootstrap package !"
-    exit 1
-fi
-
 # parse commandline options
 while [ ! -z "$1" ]; do
     case $1 in
@@ -706,6 +685,32 @@ while [ ! -z "$1" ]; do
     shift
 done
 
+# check if we have at least hostname
+if [ ! "${FQDN}" ];then
+    usage
+fi
+
+# we need root
+if [ $(id -u) != 0 ];then
+    echo "must be run as root"
+    exit 2
+fi
+
+if [ ! $(which qemu-system-arm) ];then
+    echo "qemu not installed, please use:"
+    echo "sudo apt-get install qemu"
+    echo "(or on ubuntu > karmic sudo apt-get install qemu-kvm-extras)"
+    echo "to install the qemu package !"
+    exit 1
+fi
+
+if [ ! $(which debootstrap) ];then
+    echo "debootstrap not installed, please use:"
+    echo "sudo apt-get install debootstrap"
+    echo "to install the debootstrap package !"
+    exit 1
+fi
+
 if [ ! -f /usr/share/debootstrap/scripts/$DIST ];then
   echo "Your debootstrap installation does not seem to have support for the $DIST distribution"
   exit 5
@@ -715,11 +720,7 @@ fi
 AREA=${TZONE%%/*}
 ZONE=${TZONE#*/}
 
-# check if we have at least hostname, login and password
-
-if [ ! "${FQDN}" ];then
-    usage
-fi
+# check if we have at least login and password
 
 PW=$(perl -e 'print crypt($ARGV[0], "qemuonarm")', $PASSWD)
 
