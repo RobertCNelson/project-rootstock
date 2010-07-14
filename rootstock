@@ -819,7 +819,7 @@ fi
 
 # we need root
 if [ $(id -u) != 0 ] && [ ! "$NOROOT" ];then
-    echo "You should run $PROGRAM as root unless you explicit request it by giving --no-root"
+    echo "You should run $PROGRAM as root unless you explicitly request it by giving --no-root"
     exit 2
 fi
 
