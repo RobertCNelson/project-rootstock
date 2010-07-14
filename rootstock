@@ -535,7 +535,9 @@ save_package_cache()
     mkdir -p $CACHEDIR/lists
     cp -p $MOUNTPOINT/var/lib/apt/lists/* $CACHEDIR/lists/ || true
 
-    if [ ! "$NOROOT" ];then
+    if [ "$NOROOT" ];then
+        rm -f $MOUNTPOINT/var/cache/apt/archives/*.deb
+    else
         chroot $MOUNTPOINT apt-get clean
     fi
 
