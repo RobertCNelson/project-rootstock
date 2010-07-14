@@ -58,17 +58,11 @@ cleanup()
       echo
       savelog
 
-      # unmount loop mount
-      if [ "$(mount| grep ${MOUNTPOINT})" ];then
-          umount -l $MOUNTPOINT
-      fi
+      # unmount qemu image
+      umount_image
 
       # unmount tmpfs for swap
-      if [ -n "$TMPMOUNT" ];then
-          if $(mount |grep -q $TMPMOUNT);then
-              umount -l $TMPMOUNT
-          fi
-      fi
+      umount_swap
 
       # wipe builddir
       rm -rf $BUILDDIR
@@ -163,6 +157,8 @@ advanced options:
     empty the package cache of a former --copy-package-cache run
 --extra-mirror
     additional mirror to use
+--no-root
+    run rootstock without requiring root access (slower)
 EOF
     exit 0
 }
@@ -183,12 +179,21 @@ savelog()
     fi
 }
 
-create_raw_image()
+create_qemu_image()
 {
-    [ $QUIET ] || echo "I: Creating temporary Image"
-    LANG=C qemu-img create $IMAGENAME $IMAGESIZE >$LOG 2>&1
+    [ $QUIET ] || echo "I: Creating temporary qemu Image to be used as rootfs"
+    LANG=C qemu-img create $IMAGENAME ${IMAGESIZE}k >$LOG 2>&1
     LANG=C mkfs.ext3 -F $IMAGENAME >>$LOG 2>&1
-    VOLID=$(blkid -o value $IMAGENAME|head -1)
+}
+
+create_rootfs_image()
+{
+    # create the ext3 image to be used later with qemu
+    [ $QUIET ] || echo "I: Creating ext3 Image from the rootfs"
+    genext2fs -b $IMAGESIZE -i $BYTEINODE -d $ROOTFS $IMAGENAME >>$LOG 2>&1
+    tune2fs -j $IMAGENAME >>$LOG 2>&1
+    # fsck is expected to return != 0
+    ! fsck.ext3 -y -f $IMAGENAME >>$LOG 2>&1
 }
 
 mount_image()
@@ -197,7 +202,32 @@ mount_image()
     if [ ! -d $MOUNTPOINT ];then
         mkdir -p $MOUNTPOINT >>$LOG 2>&1
     fi
-    mount -o loop $IMAGENAME $MOUNTPOINT >>$LOG 2>&1
+    if [ "$NOROOT" ];then
+        fuseext2 -o ro,direct_io -s $IMAGENAME $MOUNTPOINT >>$LOG 2>&1
+    else
+        mount -o loop $IMAGENAME $MOUNTPOINT >>$LOG 2>&1
+    fi
+}
+
+umount_image()
+{
+    if [ "$(mount | grep ${MOUNTPOINT})" ];then
+        [ $QUIET ] || echo "I: Umounting temporary Image"
+        if [ "$NOROOT" ];then
+            fusermount -z -u $MOUNTPOINT >>$LOG 2>&1
+        else
+            umount -l $MOUNTPOINT >>$LOG 2>&1
+        fi
+    fi
+}
+
+umount_swap()
+{
+    if [ -n "$TMPMOUNT" ];then
+        if $(mount |grep -q $TMPMOUNT);then
+            umount -l $TMPMOUNT
+        fi
+    fi
 }
 
 run_first_stage()
@@ -228,7 +258,7 @@ run_first_stage()
         EXTRAOPTS="--keep-debootstrap-dir --make-tarball=$TARBALL"
         mkdir -p $CACHEDIR
 
-        LANG=C debootstrap $DEFOPTS $EXTRAOPTS $DIST $MOUNTPOINT $DMIRROR >$DBFIFO 2>&1 &
+        LANG=C fakeroot debootstrap $DEFOPTS $EXTRAOPTS $DIST $ROOTFS $DMIRROR >$DBFIFO 2>&1 &
         echo $! > $DBPID
         while read line; do
             echo ${line} >>$LOG 2>&1
@@ -240,7 +270,8 @@ run_first_stage()
         EXTRAOPTS="--unpack-tarball=$TARBALL"
     fi
 
-    LANG=C debootstrap $DEFOPTS $EXTRAOPTS $DIST $MOUNTPOINT $DMIRROR >$DBFIFO 2>&1 &
+    # using fakeroot so we're able to create the base rootfs as user
+    LANG=C fakeroot debootstrap $DEFOPTS $EXTRAOPTS $DIST $ROOTFS $DMIRROR >$DBFIFO 2>&1 &
 
     echo $! > $DBPID
     while read line; do
@@ -252,15 +283,15 @@ run_first_stage()
 
     if [ "$COPY_PACKAGE_CACHE" ];then
         mkdir -p $CACHEDIR/dists/$DIST
-        cp $MOUNTPOINT/var/lib/apt/lists/*Release $CACHEDIR/dists/$DIST/Release
+        cp $ROOTFS/var/lib/apt/lists/*Release $CACHEDIR/dists/$DIST/Release
     fi
 
-    if [ ! $(which qemu-arm-static) ];then
+    if [ ! $(which qemu-arm-static) ] || [ "$NOROOT" ];then
         SECOND_STAGE="/debootstrap/debootstrap --second-stage"
     else
-        mkdir -p $MOUNTPOINT/usr/bin/
-        cp $(which qemu-arm-static) $MOUNTPOINT/usr/bin/
-        chroot $MOUNTPOINT debootstrap/debootstrap --second-stage >$DBFIFO 2>&1 &
+        mkdir -p $ROOTFS/usr/bin/
+        cp $(which qemu-arm-static) $ROOTFS/usr/bin/
+        chroot $ROOTFS debootstrap/debootstrap --second-stage >$DBFIFO 2>&1 &
         SECOND_STAGE=""
 
 		echo $! > $DBPID
@@ -284,34 +315,50 @@ run_vm()
     [ $QUIET ] || echo "I: Getting Virtual Machine kernel from the server"
     get_vm_kernel
 
-    mkfifo $QEMUFIFO
-
     [ $QUIET ] || echo "I: Switching to Virtual Machine for second stage processing"
     VMCPU="cortex-a8"
     if [ -n "$SWAPFILE" ];then
         SWAPDEV="-hdb $SWAPFILE"
     fi
     QEMUOPTS="-M versatilepb ${VMCPU:+-cpu $VMCPU} -kernel ${BUILDDIR}/qemu-vmlinuz -no-reboot -nographic -pidfile ${QEMUPID} -drive file=${IMAGENAME},aio=native,cache=none ${SWAPDEV} -m 256"
-    APPEND="console=ttyAMA0,115200n8 root=/dev/sda rw mem=256M devtmpfs.mount=0 init=/bin/installer quiet"
+    APPEND="console=ttyAMA0,115200n8 root=/dev/sda rw mem=256M init=/bin/installer quiet"
 
-    qemu-system-arm $QEMUOPTS -append "${APPEND}" >$QEMUFIFO 2>&1 &
+    # XXX: run qemu at least 2 times, workaround for qemu bug LP #604872
+    QEMURUN=0
+    while [ "$QEMURUN" -lt 2 ] && [ ! "$QEMUDONE" ];do
+        rm -f $QEMUFIFO
+        mkfifo $QEMUFIFO
 
-    while read line; do
-        if [ "$(echo $line|grep panic)" ];then
-            echo ${line} >>$LOG 2>&1
-            echo "E: Second stage build in Virtual Machine failed !"
-            echo "E: Please see the log to see what went wrong."
-            cleanup
+        ! qemu-system-arm $QEMUOPTS -append "${APPEND}" >$QEMUFIFO 2>&1 &
+        if [ "$QEMURUN" -gt 0 ];then
+            echo "W: Bad Bad Qemu, trying second stage one more time (LP #604872)"
         fi
-        if [ "$line" ] && [ ! "$(echo $line|grep 'Uncompressing Linux')" ] && \
-            [ ! "$(echo $line|grep 'unknown LCD panel')" ] && \
-            [ ! "$(echo $line|grep 'Restarting system')" ];then
-            echo ${line} >>$LOG 2>&1
-            if [ ! "$QUIET" ];then
-                echo "${line}"
+        QEMURUN=$(($QEMURUN+1))
+        while read line; do
+            if [ "$(echo $line|grep panic)" ];then
+                echo ${line} >>$LOG 2>&1
+                echo "E: Second stage build in Virtual Machine failed !"
+                echo "E: Please see the log to see what went wrong."
+                cleanup
             fi
-        fi
-    done <$QEMUFIFO
+            if [ "$line" ] && [ ! "$(echo $line|grep 'Uncompressing Linux')" ] && \
+                [ ! "$(echo $line|grep 'unknown LCD panel')" ] && \
+                [ ! "$(echo $line|grep 'Restarting system')" ];then
+                echo ${line} >>$LOG 2>&1
+                if [ ! "$QUIET" ];then
+                    echo "${line}"
+                fi
+            fi
+            if [ "$(echo $line|grep 'Restarting system')" ];then
+                QEMUDONE=1
+            fi
+        done <$QEMUFIFO
+    done;
+
+    if [ ! "$QEMUDONE" ];then
+        echo "E: Failed to run the second stage in the Virtual Machine !"
+        cleanup
+    fi
 
     rm -f $QEMUPID
 
@@ -323,8 +370,8 @@ setup_serial()
     [ $QUIET ] || echo "I: Setting up serial tty in image"
 
     if [ "$DIST" = "jaunty" ];then
-        test -d $MOUNTPOINT/etc/event.d/|| mkdir -p $MOUNTPOINT/etc/event.d/
-        cat > $MOUNTPOINT/etc/event.d/$SERIAL_TTYS <<EOF
+        test -d $ROOTFS/etc/event.d/|| mkdir -p $ROOTFS/etc/event.d/
+        cat > $ROOTFS/etc/event.d/$SERIAL_TTYS <<EOF
 start on runlevel 2
 start on runlevel 3
 start on runlevel 4
@@ -338,8 +385,8 @@ respawn
 exec /sbin/getty 115200 $SERIAL_TTYS
 EOF
     else
-        test -d $MOUNTPOINT/etc/init/|| mkdir -p $MOUNTPOINT/etc/init/
-        cat > $MOUNTPOINT/etc/init/$SERIAL_TTYS.conf <<EOF
+        test -d $ROOTFS/etc/init/|| mkdir -p $ROOTFS/etc/init/
+        cat > $ROOTFS/etc/init/$SERIAL_TTYS.conf <<EOF
 start on stopped rc RUNLEVEL=[2345]
 stop on runlevel [!2345]
 
@@ -351,11 +398,18 @@ EOF
 
 use_swap()
 {
-    TMPMOUNT=$BUILDDIR/tmpfs
-    SWAPFILE=$TMPMOUNT/swapfile
-    [ $QUIET ] || echo "I: Creating swapfile in tmpfs for VM"
-    mkdir -p $TMPMOUNT >>$LOG 2>&1
-    mount -t tmpfs -o size=$(($SWAPSIZE*1048576)) tmpfs $TMPMOUNT >>$LOG 2>&1
+    # if normal user, use swap as a file
+    if [ "$NOROOT" ]; then
+        SWAPFILE=$BUILDDIR/swapfile
+        [ $QUIET ] || echo "I: Creating a normal swapfile for VM (non-root)"
+    else
+        TMPMOUNT=$BUILDDIR/tmpfs
+        SWAPFILE=$TMPMOUNT/swapfile
+        [ $QUIET ] || echo "I: Creating swapfile in tmpfs for VM"
+        mkdir -p $TMPMOUNT >>$LOG 2>&1
+        mount -t tmpfs -o size=$(($SWAPSIZE*1048576)) tmpfs $TMPMOUNT >>$LOG 2>&1
+    fi
+
     dd if=/dev/zero of=$SWAPFILE bs=1048576 count=$(($SWAPSIZE-8)) >>$LOG 2>&1
     mkswap -f $SWAPFILE >>$LOG 2>&1
     SWAPCMD="swapon /dev/sdb"
@@ -370,8 +424,8 @@ setup_kernel_image()
 
     KERNEL_IMG=${KERNEL_IMG##*/}
 
-    test -d $MOUNTPOINT/tmp/|| mkdir -p $MOUNTPOINT/tmp/
-    cp $DIR/dl/$KERNEL_IMG  $MOUNTPOINT/tmp
+    test -d $ROOTFS/tmp/|| mkdir -p $ROOTFS/tmp/
+    cp $DIR/dl/$KERNEL_IMG  $ROOTFS/tmp
 
     [ $QUIET ] || echo "I: $KERNEL_IMG download complete"
     #Hack dpkg -i fails, no postinstall script is run anyways, so lets just extract it.
@@ -399,6 +453,8 @@ get_vm_kernel()
 
 extract_kernel_image()
 {
+    mount_image
+
     [ $QUIET ] || echo "I: Extracting vmlinuz from *.deb"
     mkdir -p $DIR/dl/tmp/
     dpkg -x $DIR/dl/$KERNEL_IMG $DIR/dl/tmp/
@@ -406,6 +462,8 @@ extract_kernel_image()
     rm -rfd $DIR/dl/
     cp $MOUNTPOINT/boot/initrd.img-* $DIR
     [ $QUIET ] || echo "I: vmlinuz & initrd.img ready for (mkimage/etc) tool"
+
+    umount_image
 }
 
 clean_package_cache()
@@ -424,13 +482,14 @@ save_package_cache()
     mkdir -p $CACHEDIR
     cp -up $MOUNTPOINT/var/cache/apt/archives/*.deb $CACHEDIR/ || true
 
-
     mkdir -p $CACHEDIR/lists
     cp -p $MOUNTPOINT/var/lib/apt/lists/* $CACHEDIR/lists/ || true
 
-    chroot $MOUNTPOINT apt-get clean
+    if [ ! "$NOROOT" ];then
+        chroot $MOUNTPOINT apt-get clean
+    fi
 
-    umount $MOUNTPOINT
+    umount_image
 }
 
 restore_package_cache()
@@ -438,9 +497,9 @@ restore_package_cache()
     [ $QUIET ] || echo -n "I: restoring cached packages"
 
 
-    mkdir -p $MOUNTPOINT/var/cache/apt/archives
+    mkdir -p $ROOTFS/var/cache/apt/archives
     i=0
-    cp -vp $CACHEDIR/*.deb $MOUNTPOINT/var/cache/apt/archives/ | \
+    cp -vp $CACHEDIR/*.deb $ROOTFS/var/cache/apt/archives/ | \
                 while read line ; do
                     if [ "$i" -ge "5" ]; then
                         [ $QUIET ] || echo -n .
@@ -450,8 +509,8 @@ restore_package_cache()
                     fi
                 done
                 [ $QUIET ] || echo
-    mkdir -p $MOUNTPOINT/var/lib/apt/lists/
-    cp -p $CACHEDIR/lists/* $MOUNTPOINT/var/lib/apt/lists/ || true
+    mkdir -p $ROOTFS/var/lib/apt/lists/
+    cp -p $CACHEDIR/lists/* $ROOTFS/var/lib/apt/lists/ || true
     APT_UPDATE=""
     APT_FORCE="--allow-unauthenticated"
 }
@@ -475,6 +534,8 @@ roll_tarball()
     echo "I: ARM rootfs created as $DIR/armel-rootfs-$STAMP.tgz"
 
     cd - >/dev/null 2>&1
+
+    umount_image
 }
 
 save_qemu_img()
@@ -496,7 +557,9 @@ PASSWD=""
 
 # target package selection
 SELECTION="" # change here to install ubuntu-desktop
-IMAGESIZE="1G" # make this 3G for an ubuntu-desktop install
+# kbytes
+IMAGESIZE="1048576" # 1G, make this 3G for an ubuntu-desktop install
+BYTEINODE="4096"
 
 # default to the build system locale
 . /etc/environment
@@ -526,6 +589,7 @@ DEFGROUPS="admin,adm,dialout,cdrom,floppy,audio,dip,video"
 STAMP=$(date +%Y%m%d%H%M)
 BUILDDIR=$(mktemp -d)
 MOUNTPOINT="${BUILDDIR}/tmpmount"
+ROOTFS="${BUILDDIR}/rootfs"
 IMAGENAME="${BUILDDIR}/qemu-armel-$STAMP.img"
 QEMUPID="${BUILDDIR}/qemu.pid"
 QEMUFIFO="${BUILDDIR}/qemufifo"
@@ -542,7 +606,6 @@ PACKAGE_CLEANUP="apt-get clean"
 PACKAGE_CLEANUP_SUB="${PACKAGE_CLEANUP}"
 APT_UPDATE="apt-get update"
 APT_FORCE=""
-CACHEDIR="/var/cache/rootstock/archives"
 EXRA_MIRROR_CMD=""
 
 # parse commandline options
@@ -573,12 +636,14 @@ while [ ! -z "$1" ]; do
             ;;
         -i|--imagesize)
             checkparm $2
-            if [ ! "$(echo $2|grep 'M')" ] && \
-                [ ! "$(echo $2|grep 'G')" ];then
+            if [ "$(echo $2|grep '^[0-9]*M$')" ];then
+                IMAGESIZE="$((1024*${2%M}))"
+            elif [ "$(echo $2|grep '^[0-9]*G$')" ];then
+                IMAGESIZE="$((1024*1024*${2%G}))"
+            else
                 echo "E: Size needs to be in gigabyte or megabyte"
                 usage
             fi
-            IMAGESIZE="$2"
             ;;
         -g|--manifest)
             checkparm "${2}"
@@ -671,7 +736,6 @@ while [ ! -z "$1" ]; do
         --restore-package-cache)
             RESTORE_PACKAGE_CACHE=1
             APT_UPDATE=""
-            PACKAGE_CLEANUP=""
             ;;
         --clean-package-cache)
             CLEAN_PACKAGE_CACHE=1
@@ -680,6 +744,13 @@ while [ ! -z "$1" ]; do
         --extra-mirror)
             checkparm $2
             EXTRAMIRROR=$2
+            ;;
+        --no-root)
+            if [ "$(id -u)" -eq 0 ];then
+                echo "You are root, why would you like to run with --no-root?"
+                exit 2
+            fi
+            NOROOT=1
             ;;
     esac
     shift
@@ -691,8 +762,8 @@ if [ ! "${FQDN}" ];then
 fi
 
 # we need root
-if [ $(id -u) != 0 ];then
-    echo "must be run as root"
+if [ $(id -u) != 0 ] && [ ! "$NOROOT" ];then
+    echo "You should run $(basename $0) as root unless you explicit request it by giving --no-root"
     exit 2
 fi
 
@@ -714,6 +785,13 @@ fi
 if [ ! -f /usr/share/debootstrap/scripts/$DIST ];then
   echo "Your debootstrap installation does not seem to have support for the $DIST distribution"
   exit 5
+fi
+
+# set up the cache DIR
+if [ "$NOROOT" ];then
+    CACHEDIR="${HOME}/.cache/rootstock/archives"
+else
+    CACHEDIR="/var/cache/rootstock/archives"
 fi
 
 # process vars
@@ -745,8 +823,16 @@ if [ "$CLEAN_PACKAGE_CACHE" ];then
     clean_package_cache
 fi
 
-create_raw_image
-mount_image
+if [ "$NOROOT" ];then
+    # create the rootfs directory to be filled latter
+    mkdir -p $ROOTFS >>$LOG 2>&1
+else
+    # if we're root, we use qemu and mount the image as loop, much faster
+    create_qemu_image
+    mount_image
+    ROOTFS=$MOUNTPOINT
+fi
+
 run_first_stage
 
 # restore cached packages from host machine
@@ -759,14 +845,14 @@ if [ "$EXTRAMIRROR" ];then
 fi
 
 # basic fstab
-echo "proc /proc proc defaults 0 0" >$MOUNTPOINT/etc/fstab
+echo "proc /proc proc defaults 0 0" >$ROOTFS/etc/fstab
 if [ "$KEEPIMAGE" ];then
-    echo "UUID=${VOLID} / auto errors=remount-ro 0 1" >>$MOUNTPOINT/etc/fstab
+    echo "/dev/sda / auto errors=remount-ro 0 1" >>$ROOTFS/etc/fstab
 fi
 
 if [ -e /etc/apt/apt.conf.d/proxy ];then
-    mkdir -p $MOUNTPOINT/etc/apt/apt.conf.d
-    cp /etc/apt/apt.conf.d/proxy $MOUNTPOINT/etc/apt/apt.conf.d/proxy
+    mkdir -p $ROOTFS/etc/apt/apt.conf.d
+    cp /etc/apt/apt.conf.d/proxy $ROOTFS/etc/apt/apt.conf.d/proxy
 fi
 
 if [ "$http_proxy" ];then
@@ -774,7 +860,7 @@ if [ "$http_proxy" ];then
 fi
 
 # set up basic networking
-NETWORKDIR="$MOUNTPOINT/etc/network"
+NETWORKDIR="$ROOTFS/etc/network"
 INTERFACES="$NETWORKDIR/interfaces"
 mkdir -p $NETWORKDIR
 
@@ -782,11 +868,11 @@ echo "auto lo" >$INTERFACES
 echo "iface lo inet loopback" >>$INTERFACES
 
 # set up resolver
-HOSTS="$MOUNTPOINT/etc/hosts"
+HOSTS="$ROOTFS/etc/hosts"
 echo "127.0.0.1 localhost" >$HOSTS
 echo "127.0.1.1 ${FQDN}" >>$HOSTS
 
-echo "${FQDN}" >$MOUNTPOINT/etc/hostname
+echo "${FQDN}" >$ROOTFS/etc/hostname
 
 if [ "$KERNEL_IMAGE" ];then
     setup_kernel_image
@@ -803,7 +889,13 @@ export LC_ALL=C
 export DEBIAN_FRONTEND=noninteractive
 export http_proxy="${PROXY}"
 
-${SECOND_STAGE}
+if [ -f "/debootstrap/debootstrap" ];then
+    echo "I: Fixing root fs permission"
+    chown -R 0:0 /
+
+    echo "I: Running second stage"
+    ${SECOND_STAGE}
+fi
 
 echo "I: Starting basic services in VM"
 
@@ -881,7 +973,7 @@ EOF
 
 # copy over user script
 if [ "$USER_SCRIPT" ]; then
-    cp "$USER_SCRIPT" "$MOUNTPOINT/rootstock-user-script"
+    cp "$USER_SCRIPT" "$ROOTFS/rootstock-user-script"
 fi
 
 if [ "$SERIAL" ];then
@@ -892,11 +984,15 @@ if [ ! "$NOSWAP" ];then
     use_swap
 fi
 
-mv $BUILDDIR/installer $MOUNTPOINT/bin/ >>$LOG 2>&1
-chmod +x $MOUNTPOINT/bin/installer >>$LOG 2>&1
+mv $BUILDDIR/installer $ROOTFS/bin/ >>$LOG 2>&1
+chmod +x $ROOTFS/bin/installer >>$LOG 2>&1
 
-# make sure we're not mounted
-umount $MOUNTPOINT >>$LOG 2>&1
+if [ "$NOROOT" ];then
+    # if user, creates the ext3 fs for qemu, based on the rootfs
+    create_rootfs_image
+else
+    umount_image
+fi
 
 # run vm for second stage
 run_vm
