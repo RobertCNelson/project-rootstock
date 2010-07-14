@@ -369,6 +369,9 @@ run_vm()
     fi
     QEMUOPTS="-M versatilepb ${VMCPU:+-cpu $VMCPU} -kernel ${BUILDDIR}/qemu-vmlinuz -no-reboot -nographic -pidfile ${QEMUPID} -drive file=${IMAGENAME},aio=native,cache=none ${SWAPDEV} -m 256"
     APPEND="console=ttyAMA0,115200n8 root=/dev/sda rw mem=256M init=/bin/installer quiet"
+    if [ ! "$NOROOT" ];then
+        APPEND="${APPEND} devtmpfs.mount=0"
+    fi
 
     # XXX: run qemu at least 2 times, workaround for qemu bug LP #604872
     QEMURUN=0
