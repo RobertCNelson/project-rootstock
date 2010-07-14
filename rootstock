@@ -39,38 +39,38 @@ VERSION="0.1.99.3"
 
 cleanup()
 {
-      echo "I: Cleaning up..."
-      echo "I: Killed ... " >>$LOG 2>&1
+    echo "I: Cleaning up..."
+    echo "I: Killed ... " >>$LOG 2>&1
 
-      # kill debootstrap if its running
-      if [ -e ${DBPID} ];then
-          DPID=$(cat ${DBPID})
-          kill -9 $DPID >/dev/null 2>&1
-      fi
+    # kill debootstrap if its running
+    if [ -e ${DBPID} ];then
+        DPID=$(cat ${DBPID})
+        kill -9 $DPID >/dev/null 2>&1
+    fi
 
-      # kill qemu if its running
-      if [ -e ${QEMUPID} ];then
-          QPID=$(cat ${QEMUPID})
-          kill -9 $QPID >/dev/null 2>&1
-      fi
+    # kill qemu if its running
+    if [ -e ${QEMUPID} ];then
+        QPID=$(cat ${QEMUPID})
+        kill -9 $QPID >/dev/null 2>&1
+    fi
 
-      for i in 1 2 3 4 5; do
-          echo -n '.'
-          sleep 1
-      done
-      echo
-      savelog
+    for i in 1 2 3 4 5; do
+        echo -n '.'
+        sleep 1
+    done
+    echo
+    savelog
 
-      # unmount qemu image
-      umount_image
+    # unmount qemu image
+    umount_image
 
-      # unmount tmpfs for swap
-      umount_swap
+    # unmount tmpfs for swap
+    umount_swap
 
-      # wipe builddir
-      rm -rf $BUILDDIR
-      echo "I: done ..."
-      exit 0
+    # wipe builddir
+    rm -rf $BUILDDIR
+    echo "I: done ..."
+    exit 0
 }
 
 usage()
