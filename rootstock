@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#  Copyright (c) 2009 Canonical
+#  Copyright (c) 2009, 2010 Canonical
 #
 #  Author: Oliver Grawert <ogra@canonical.com>
 #
@@ -33,6 +33,9 @@
 set -e
 
 trap cleanup 1 2 3 6 15
+
+PROGRAM="$(basename $0)"
+VERSION="0.1.99.3"
 
 cleanup()
 {
@@ -72,20 +75,35 @@ cleanup()
 
 usage()
 {
-    echo "usage: $(basename $0) -f <hostname> -l <login name> -p <password> [option]"
 cat <<EOF
+Usage: $PROGRAM -f <hostname> [OPTION]...
+Generates Ubuntu armel rootfs tarballs and/or qemu image, to be
+uncompressed onto a root device.
 
-required options:
+Note that it does not set up a kernel, modules or bootloader for you.
+Kernel and bootloader need to be set up in a device specific manner,
+modules should be copied to the filesystem after it was uncompressed
+on the target device.
+
+It also uses a virtual machine and can take long to build your
+filesystem, please be patient and make sure to have enough CPU power
+on the host machine.
+
+Options:
+
+Required:
+
 -f --fqdn <hostname>
     Hostname to be used for the target system
 
-additional options:
+Additional:
+
 -l --login <login name>
     Login ID of the admin user created during setup
 -p --password <password>
     Password of the admin user created during setup
 -h --help
-    this help
+    Display this help
 -n --fullname <quoted string>
     Full Name of the admin user created during setup
     (default: "Ubuntu System User")
@@ -120,8 +138,11 @@ additional options:
 --swapsize <size in megabyte>
     Use a different size for the swapfile used by the virtual machine
     (default: 256M)
+--version
+    Print version number
 
-keyboard options:
+Keyboard:
+
 --kblayout <layout>
     Keyboard layout (i.e. us)
     (default: buildsystem kblayout)
@@ -135,17 +156,20 @@ keyboard options:
     Additional keyboard options
     (default: buildsystem kboptions)
 
-output options:
+Output:
+
 --keepimage
     Keep the qemu image instead of deleting it
 --notarball
     Do not roll a tarball of the rootfs (autosets --keepimage)
 
-extra parameters:
+Extra parameters:
+
 -q --quiet
     Quiet operation, only write to log
 
-advanced options:
+Advanced:
+
 --kernel-image <http url to kernel .deb>
     install board specfic kernel package from http accessible deb package inside rootfs
 --copy-package-cache
@@ -159,8 +183,31 @@ advanced options:
     additional mirror to use
 --no-root
     run rootstock without requiring root access (slower)
+
+Examples:
+
+Xubuntu-Desktop (as root): rootstock -f host -l user -p temppwd -i 2G -s xubuntu-desktop
+
+Minimal Ubuntu (as user): rootstock -f host -l user -p temppwd -i 512M --no-root -s ubuntu-minimal
+
+Report bugs at https://launchpad.net/project-rootstock/+filebug
 EOF
     exit 0
+}
+
+print_version()
+{
+cat <<EOF
+$PROGRAM $VERSION
+
+Copyright (C) 2009, 2010 Canonical
+License: GNU GPL version 2 or later <http://gnu.org/licenses/gpl.html>.
+
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+
+Written by Oliver Grawert <ogra@canonical.com>.
+EOF
 }
 
 checkparm()
@@ -175,7 +222,7 @@ savelog()
 {
     if [ -z "$NOSAVELOG" ];then
         mv $LOG $DIR/
-        echo "I: A logfile was saved as $DIR/$(basename $0)-$STAMP.log"
+        echo "I: A logfile was saved as $DIR/${PROGRAM}-$STAMP.log"
     fi
 }
 
@@ -600,7 +647,7 @@ NOSWAP=1
 SWAPSIZE=256
 
 # general defaults
-LOG="$BUILDDIR/$(basename $0)-$STAMP.log"
+LOG="$BUILDDIR/${PROGRAM}-$STAMP.log"
 
 PACKAGE_CLEANUP="apt-get clean"
 PACKAGE_CLEANUP_SUB="${PACKAGE_CLEANUP}"
@@ -752,6 +799,10 @@ while [ ! -z "$1" ]; do
             fi
             NOROOT=1
             ;;
+        --version)
+            print_version
+            exit 0
+            ;;
     esac
     shift
 done
@@ -763,7 +814,7 @@ fi
 
 # we need root
 if [ $(id -u) != 0 ] && [ ! "$NOROOT" ];then
-    echo "You should run $(basename $0) as root unless you explicit request it by giving --no-root"
+    echo "You should run $PROGRAM as root unless you explicit request it by giving --no-root"
     exit 2
 fi
 
