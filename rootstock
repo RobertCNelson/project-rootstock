@@ -210,14 +210,6 @@ Written by Oliver Grawert <ogra@canonical.com>.
 EOF
 }
 
-checkparm()
-{
-    if [ "$(echo $1|grep ^'\-')" ];then
-        echo "E: Need an argument"
-        usage
-    fi
-}
-
 savelog()
 {
     if [ -z "$NOSAVELOG" ];then
@@ -661,141 +653,155 @@ APT_FORCE=""
 EXRA_MIRROR_CMD=""
 
 # parse commandline options
-while [ ! -z "$1" ]; do
+GETOPT=`getopt -o hf:l:p:n:i:g:m:c:t:x:d:q --long help,fqdn:,login:,\
+password:,fullname:,seed:,imagesize:,manifest:,mirror:,components:,timezone:,\
+kblayout:,kbmodel:,kbvariant:,kboptions:,locale:,keepimage,notarball,script:,\
+serial::,doswap,swapsize:,dist:,quiet,kernel-image:,copy-package-cache,\
+restore-package-cache,clean-package-cache,extra-mirror:,no-root,version \
+-n "$PROGRAM" -- "$@"`
+if [ $? != 0 ]; then usage; exit 1; fi
+eval set -- "$GETOPT"
+while true ; do
     case $1 in
         -h|--help)
             usage
+            shift
             ;;
         -f|--fqdn)
-            checkparm $2
             FQDN="$2"
+            shift 2
             ;;
         -l|--login)
-            checkparm $2
             NEWUSER="$2"
+            shift 2
             ;;
         -p|--password)
-            checkparm $2
             PASSWD="$2"
+            shift 2
             ;;
         -n|--fullname)
-            checkparm $2
             FULLNAME="$2"
+            shift 2
             ;;
         -s|--seed)
-            checkparm $2
             SELECTION="$(echo $2|tr ',' ' ')"
+            shift 2
             ;;
         -i|--imagesize)
-            checkparm $2
             if [ "$(echo $2|grep '^[0-9]*M$')" ];then
                 IMAGESIZE="$((1024*${2%M}))"
             elif [ "$(echo $2|grep '^[0-9]*G$')" ];then
                 IMAGESIZE="$((1024*1024*${2%G}))"
             else
-                echo "E: Size needs to be in gigabyte or megabyte"
-                usage
+                echo "E: Size needs to be in gigabyte or megabyte (M|G)"
+                exit 1
             fi
+            shift 2
             ;;
         -g|--manifest)
-            checkparm "${2}"
             SELECTION="$(cat "${2}" | sed ':a;N;$!ba;s/\n/ /g')"
+            shift 2
             ;;
         -m|--mirror)
-            checkparm $2
             MIRROR="$2"
+            shift 2
             ;;
         -c|--components)
-            checkparm $2
             COMPONENTS="$(echo $2|tr ',' ' ')"
+            shift 2
             ;;
         -t|--timezone)
-            checkparm $2
             if [ ! "$(echo $2|grep '/')" ];then
                 echo "E: Need a proper timezone"
                 usage
             fi
             TZONE="$2"
+            shift 2
             ;;
         --kblayout)
-            checkparm $2
             XKBL="$2"
+            shift 2
             ;;
         --kbmodel)
-            checkparm $2
             XKBM="$2"
+            shift 2
             ;;
         --kbvariant)
-            checkparm $2
             XKBV="$2"
+            shift 2
             ;;
         --kboptions)
-            checkparm $2
             XKBO="$2"
+            shift 2
             ;;
         -x|--locale)
-            checkparm $2
             if [ ! "$(echo $2|grep '_')" ];then
                 echo "E: Need a proper locale"
                 usage
             fi
             NEWLOCALE="$2"
+            shift 2
             ;;
         --keepimage)
             KEEPIMAGE=1
+            shift
             ;;
         --notarball)
             NOTARBALL=1
             KEEPIMAGE=1
+            shift
             ;;
         --script)
-            checkparm $2
             USER_SCRIPT="$2"
+            shift 2
             ;;
         --serial)
-            checkparm $2
-            if [ ! "$(echo $2)" ];then
-                SERIAL_TTYS="ttyS0"
-            else
-                SERIAL_TTYS="$2"
-            fi
+            case "$2" in
+                "") SERIAL_TTYS="ttyS0"; shift 2 ;;
+                *) SERIAL_TTYS="$2"; shift 2 ;;
+            esac
             SERIAL=1
             ;;
         --doswap)
             NOSWAP=""
+            shift
             ;;
         --swapsize)
-            checkparm $2
             SWAPSIZE="$2"
+            shift 2
             ;;
         -d|--dist)
-            checkparm $2
             DIST="$2"
+            shift 2
             ;;
         -q|--quiet)
             QUIET=1
+            shift
             ;;
         --kernel-image)
-            checkparm $2
             KERNEL_IMAGE=1
             KERNEL_IMG="$2"
+            shift 2
             ;;
         --copy-package-cache)
             COPY_PACKAGE_CACHE=1
             PACKAGE_CLEANUP=""
             PACKAGE_CLEANUP_SUB=""
+            shift
             ;;
         --restore-package-cache)
             RESTORE_PACKAGE_CACHE=1
             APT_UPDATE=""
+            shift
             ;;
         --clean-package-cache)
             CLEAN_PACKAGE_CACHE=1
             NOSAVELOG=1
+            shift
             ;;
         --extra-mirror)
-            checkparm $2
             EXTRAMIRROR=$2
+            shift 2
             ;;
         --no-root)
             if [ "$(id -u)" -eq 0 ];then
@@ -803,13 +809,21 @@ while [ ! -z "$1" ]; do
                 exit 2
             fi
             NOROOT=1
+            shift
             ;;
         --version)
             print_version
             exit 0
             ;;
+        --)
+            shift
+            break
+            ;;
+        *)
+            echo "Internal error!";
+            exit 1
+            ;;
     esac
-    shift
 done
 
 # check if we have at least hostname
