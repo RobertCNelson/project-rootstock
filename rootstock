@@ -515,8 +515,12 @@ extract_kernel_image()
 clean_package_cache()
 {
     log "I: Removing cached files"
-    rm -rf $CACHEDIR/*
-    cleanup
+    rm -rfv $CACHEDIR/* >> $LOG 2>&1
+    # just runs cleanup if we don't need to create a rootfs
+    if [ ! "${FQDN}" ];then
+        NOSAVELOG=1
+        cleanup
+    fi
 }
 
 save_package_cache()
@@ -789,7 +793,6 @@ while true ; do
             ;;
         --clean-package-cache)
             CLEAN_PACKAGE_CACHE=1
-            NOSAVELOG=1
             shift
             ;;
         --extra-mirror)
@@ -820,7 +823,7 @@ while true ; do
 done
 
 # check if we have at least hostname
-if [ ! "${FQDN}" ];then
+if [ ! "${FQDN}" ] && [ ! "$CLEAN_PACKAGE_CACHE" ];then
     usage
 fi
 
@@ -828,6 +831,16 @@ fi
 if [ $(id -u) != 0 ] && [ ! "$NOROOT" ];then
     echo "You should run $PROGRAM as root unless you explicitly request it by giving --no-root"
     exit 2
+fi
+
+# set up the cache DIR and clean it if needed
+if [ "$NOROOT" ];then
+    CACHEDIR="${HOME}/.cache/rootstock/archives"
+else
+    CACHEDIR="/var/cache/rootstock/archives"
+fi
+if [ "$CLEAN_PACKAGE_CACHE" ];then
+    clean_package_cache
 fi
 
 if [ ! $(which qemu-system-arm) ];then
@@ -848,13 +861,6 @@ fi
 if [ ! -f /usr/share/debootstrap/scripts/$DIST ];then
   echo "Your debootstrap installation does not seem to have support for the $DIST distribution"
   exit 5
-fi
-
-# set up the cache DIR
-if [ "$NOROOT" ];then
-    CACHEDIR="${HOME}/.cache/rootstock/archives"
-else
-    CACHEDIR="/var/cache/rootstock/archives"
 fi
 
 # process vars
@@ -880,10 +886,6 @@ fi
 apt-get install -y --no-install-recommends $PACKAGE'
     OEM_CONFIG_ENABLE="touch /var/lib/oem-config/run
 rm /usr/lib/ubiquity/plugins/ubi-tasks.py*"
-fi
-
-if [ "$CLEAN_PACKAGE_CACHE" ];then
-    clean_package_cache
 fi
 
 if [ "$NOROOT" ];then
