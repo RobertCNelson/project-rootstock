@@ -37,21 +37,33 @@ trap cleanup 1 2 3 6 15
 PROGRAM="$(basename $0)"
 VERSION="0.1.99.3"
 
+log()
+{
+    [ $QUIET ] || echo "$*"
+    echo "$*" >> $LOG
+}
+
+error()
+{
+    echo "$*" | tee -a $LOG
+}
+
 cleanup()
 {
-    echo "I: Cleaning up..."
-    echo "I: Killed ... " >>$LOG 2>&1
+    log "I: Cleaning up..."
 
     # kill debootstrap if its running
     if [ -e ${DBPID} ];then
         DPID=$(cat ${DBPID})
         kill -9 $DPID >/dev/null 2>&1
+        log "I: Killed debootstrap... "
     fi
 
     # kill qemu if its running
     if [ -e ${QEMUPID} ];then
         QPID=$(cat ${QEMUPID})
         kill -9 $QPID >/dev/null 2>&1
+        log "I: Killed qemu... "
     fi
 
     for i in 1 2 3 4 5; do
@@ -59,7 +71,6 @@ cleanup()
         sleep 1
     done
     echo
-    savelog
 
     # unmount qemu image
     umount_image
@@ -67,9 +78,11 @@ cleanup()
     # unmount tmpfs for swap
     umount_swap
 
+    savelog
+
     # wipe builddir
     rm -rf $BUILDDIR
-    echo "I: done ..."
+    echo "I: Done"
     exit 0
 }
 
@@ -220,7 +233,7 @@ savelog()
 
 create_qemu_image()
 {
-    [ $QUIET ] || echo "I: Creating temporary qemu Image to be used as rootfs"
+    log "I: Creating temporary qemu Image to be used as rootfs"
     LANG=C qemu-img create $IMAGENAME ${IMAGESIZE}k >$LOG 2>&1
     LANG=C mkfs.ext3 -F $IMAGENAME >>$LOG 2>&1
 }
@@ -228,9 +241,9 @@ create_qemu_image()
 create_rootfs_image()
 {
     # create the ext3 image to be used later with qemu
-    [ $QUIET ] || echo "I: Creating ext3 Image from the rootfs"
+    log "I: Creating ext3 Image from the rootfs"
     if ! ERROR=$(genext2fs -b $IMAGESIZE -i $BYTEINODE -d $ROOTFS $IMAGENAME 2>&1);then
-        echo "E: $ERROR" | tee -a $LOG
+        error "E: $ERROR"
         cleanup
     fi
     tune2fs -j $IMAGENAME >>$LOG 2>&1
@@ -240,7 +253,7 @@ create_rootfs_image()
 
 mount_image()
 {
-    [ $QUIET ] || echo "I: Mounting temporary Image"
+    log "I: Mounting temporary Image"
     if [ ! -d $MOUNTPOINT ];then
         mkdir -p $MOUNTPOINT >>$LOG 2>&1
     fi
@@ -254,7 +267,7 @@ mount_image()
 umount_image()
 {
     if [ "$(mount | grep ${MOUNTPOINT})" ];then
-        [ $QUIET ] || echo "I: Umounting temporary Image"
+        log "I: Umounting temporary Image"
         if [ "$NOROOT" ];then
             fusermount -z -u $MOUNTPOINT >>$LOG 2>&1
         else
@@ -274,7 +287,7 @@ umount_swap()
 
 run_first_stage()
 {
-    [ $QUIET ] || echo "I: Running first stage"
+    log "I: Running first stage"
 
     mkfifo $DBFIFO
 
@@ -285,28 +298,25 @@ run_first_stage()
 
     if [ "$RESTORE_PACKAGE_CACHE" ];then
         if [ ! -d $CACHEDIR ];then
-            echo "I: Error, no pre-cached packages found !"
-            echo "I: please run rootstock with --copy-package-cache first"
+            error "E: Error, no pre-cached packages found !"
+            error "E: please run rootstock with --copy-package-cache first"
             NOSAVELOG=1
             cleanup
         fi
-        [ $QUIET ] || echo "I: using pre-cached packages"
+        log "I: using pre-cached packages"
         EXTRAOPTS="--unpack-tarball=$TARBALL"
         DMIRROR="file://$CACHEDIR"
     fi
 
     if [ "$COPY_PACKAGE_CACHE" ];then
-        [ $QUIET ] || echo "I: pre-caching debootstrap packages"
+        log "I: pre-caching debootstrap packages"
         EXTRAOPTS="--keep-debootstrap-dir --make-tarball=$TARBALL"
         mkdir -p $CACHEDIR
 
         LANG=C fakeroot debootstrap $DEFOPTS $EXTRAOPTS $DIST $ROOTFS $DMIRROR >$DBFIFO 2>&1 &
         echo $! > $DBPID
         while read line; do
-            echo ${line} >>$LOG 2>&1
-            if [ ! "$QUIET" ];then
-                echo "${line}"
-            fi
+            log "${line}"
         done <$DBFIFO
 
         EXTRAOPTS="--unpack-tarball=$TARBALL"
@@ -317,10 +327,7 @@ run_first_stage()
 
     echo $! > $DBPID
     while read line; do
-        echo ${line} >>$LOG 2>&1
-        if [ ! "$QUIET" ];then
-            echo "${line}"
-        fi
+        log "${line}"
     done <$DBFIFO
 
     if [ "$COPY_PACKAGE_CACHE" ];then
@@ -338,26 +345,23 @@ run_first_stage()
 
 		echo $! > $DBPID
 		while read line; do
-			echo ${line} >>$LOG 2>&1
-			if [ ! "$QUIET" ];then
-				echo "${line}"
-			fi
+			log "${line}"
 		done <$DBFIFO
     fi
 
     rm -f $DBFIFO
     rm -f $DBPID
 
-    [ $QUIET ] || echo "I: First stage install done"
+    log "I: First stage install done"
 }
 
 run_vm()
 {
     # get kernel
-    [ $QUIET ] || echo "I: Getting Virtual Machine kernel from the server"
+    log "I: Getting Virtual Machine kernel from the server"
     get_vm_kernel
 
-    [ $QUIET ] || echo "I: Switching to Virtual Machine for second stage processing"
+    log "I: Switching to Virtual Machine for second stage processing"
     VMCPU="cortex-a8"
     if [ -n "$SWAPFILE" ];then
         SWAPDEV="-hdb $SWAPFILE"
@@ -376,23 +380,20 @@ run_vm()
 
         ! qemu-system-arm $QEMUOPTS -append "${APPEND}" >$QEMUFIFO 2>&1 &
         if [ "$QEMURUN" -gt 0 ];then
-            echo "W: Bad Bad Qemu, trying second stage one more time (LP #604872)"
+            error "W: Bad Bad Qemu, trying second stage one more time (LP #604872)"
         fi
         QEMURUN=$(($QEMURUN+1))
         while read line; do
             if [ "$(echo $line|grep panic)" ];then
-                echo ${line} >>$LOG 2>&1
-                echo "E: Second stage build in Virtual Machine failed !"
-                echo "E: Please see the log to see what went wrong."
+                log "${line}"
+                error "E: Second stage build in Virtual Machine failed !"
+                error "E: Please see the log to see what went wrong."
                 cleanup
             fi
             if [ "$line" ] && [ ! "$(echo $line|grep 'Uncompressing Linux')" ] && \
                 [ ! "$(echo $line|grep 'unknown LCD panel')" ] && \
                 [ ! "$(echo $line|grep 'Restarting system')" ];then
-                echo ${line} >>$LOG 2>&1
-                if [ ! "$QUIET" ];then
-                    echo "${line}"
-                fi
+                log "${line}"
             fi
             if [ "$(echo $line|grep 'Restarting system')" ];then
                 QEMUDONE=1
@@ -401,18 +402,18 @@ run_vm()
     done;
 
     if [ ! "$QEMUDONE" ];then
-        echo "E: Failed to run the second stage in the Virtual Machine !"
+        error "E: Failed to run the second stage in the Virtual Machine !"
         cleanup
     fi
 
     rm -f $QEMUPID
 
-    [ $QUIET ] || echo "I: Virtual Machine done"
+    log "I: Virtual Machine done"
 }
 
 setup_serial()
 {
-    [ $QUIET ] || echo "I: Setting up serial tty in image"
+    log "I: Setting up serial tty in image"
 
     if [ "$DIST" = "jaunty" ];then
         test -d $ROOTFS/etc/event.d/|| mkdir -p $ROOTFS/etc/event.d/
@@ -446,11 +447,11 @@ use_swap()
     # if normal user, use swap as a file
     if [ "$NOROOT" ]; then
         SWAPFILE=$BUILDDIR/swapfile
-        [ $QUIET ] || echo "I: Creating a normal swapfile for VM (non-root)"
+        log "I: Creating a normal swapfile for VM (non-root)"
     else
         TMPMOUNT=$BUILDDIR/tmpfs
         SWAPFILE=$TMPMOUNT/swapfile
-        [ $QUIET ] || echo "I: Creating swapfile in tmpfs for VM"
+        log "I: Creating swapfile in tmpfs for VM"
         mkdir -p $TMPMOUNT >>$LOG 2>&1
         mount -t tmpfs -o size=$(($SWAPSIZE*1048576)) tmpfs $TMPMOUNT >>$LOG 2>&1
     fi
@@ -462,7 +463,7 @@ use_swap()
 
 setup_kernel_image()
 {
-    [ $QUIET ] || echo "I: Downloading kernel image (deb) from external site"
+    log "I: Downloading kernel image (deb) from external site"
 
     mkdir -p $DIR/dl/
     wget --directory-prefix=$DIR/dl/ --quiet $KERNEL_IMG
@@ -472,7 +473,7 @@ setup_kernel_image()
     test -d $ROOTFS/tmp/|| mkdir -p $ROOTFS/tmp/
     cp $DIR/dl/$KERNEL_IMG  $ROOTFS/tmp
 
-    [ $QUIET ] || echo "I: $KERNEL_IMG download complete"
+    lag "I: $KERNEL_IMG download complete"
     #Hack dpkg -i fails, no postinstall script is run anyways, so lets just extract it.
     KERNEL_IMAGE_CMD="dpkg -x /tmp/$KERNEL_IMG /"
 
@@ -500,27 +501,27 @@ extract_kernel_image()
 {
     mount_image
 
-    [ $QUIET ] || echo "I: Extracting vmlinuz from *.deb"
+    log "I: Extracting vmlinuz from *.deb"
     mkdir -p $DIR/dl/tmp/
     dpkg -x $DIR/dl/$KERNEL_IMG $DIR/dl/tmp/
     cp $DIR/dl/tmp/boot/vmlinuz-* $DIR
     rm -rfd $DIR/dl/
     cp $MOUNTPOINT/boot/initrd.img-* $DIR
-    [ $QUIET ] || echo "I: vmlinuz & initrd.img ready for (mkimage/etc) tool"
+    log "I: vmlinuz & initrd.img ready for (mkimage/etc) tool"
 
     umount_image
 }
 
 clean_package_cache()
 {
-    [ $QUIET ] || echo "I: Removing cached files"
+    log "I: Removing cached files"
     rm -rf $CACHEDIR/*
     cleanup
 }
 
 save_package_cache()
 {
-    [ $QUIET ] || echo "I: caching packages for later use"
+    log "I: caching packages for later use"
 
     mount_image
 
@@ -541,23 +542,12 @@ save_package_cache()
 
 restore_package_cache()
 {
-    [ $QUIET ] || echo -n "I: restoring cached packages"
-
+    log "I: Restoring cached packages (may take a while)..."
 
     mkdir -p $ROOTFS/var/cache/apt/archives
-    i=0
-    cp -vp $CACHEDIR/*.deb $ROOTFS/var/cache/apt/archives/ | \
-                while read line ; do
-                    if [ "$i" -ge "5" ]; then
-                        [ $QUIET ] || echo -n .
-                        i=0
-                    else
-                        i=$(($i+1))
-                    fi
-                done
-                [ $QUIET ] || echo
+    cp -vp $CACHEDIR/*.deb $ROOTFS/var/cache/apt/archives/ >> $LOG 2>&1
     mkdir -p $ROOTFS/var/lib/apt/lists/
-    cp -p $CACHEDIR/lists/* $ROOTFS/var/lib/apt/lists/ || true
+    cp -vp $CACHEDIR/lists/* $ROOTFS/var/lib/apt/lists/ >> $LOG 2>&1 || true
     APT_UPDATE=""
     APT_FORCE="--allow-unauthenticated"
 }
@@ -570,7 +560,7 @@ add_extra_mirror()
 roll_tarball()
 {
     # create a rootfs tgz
-    [ $QUIET ] || echo "I: Creating tarball from rootfs"
+    log "I: Creating tarball from rootfs"
 
     mount_image
 
@@ -1093,5 +1083,6 @@ if [ "$KERNEL_IMAGE" ];then
     extract_kernel_image
 fi
 
-# clean up and save a log
+# log, clean up and save a log
+log "I: Rootstock finished successfully"
 cleanup
