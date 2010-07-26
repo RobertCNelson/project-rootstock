@@ -229,7 +229,10 @@ create_rootfs_image()
 {
     # create the ext3 image to be used later with qemu
     [ $QUIET ] || echo "I: Creating ext3 Image from the rootfs"
-    genext2fs -b $IMAGESIZE -i $BYTEINODE -d $ROOTFS $IMAGENAME >>$LOG 2>&1
+    if ! ERROR=$(genext2fs -b $IMAGESIZE -i $BYTEINODE -d $ROOTFS $IMAGENAME 2>&1);then
+        echo "E: $ERROR" | tee -a $LOG
+        cleanup
+    fi
     tune2fs -j $IMAGENAME >>$LOG 2>&1
     # fsck is expected to return != 0
     ! fsck.ext3 -y -f $IMAGENAME >>$LOG 2>&1
