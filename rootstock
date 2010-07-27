@@ -867,26 +867,8 @@ fi
 AREA=${TZONE%%/*}
 ZONE=${TZONE#*/}
 
-# check if we have at least login and password
-
+# generate the user password
 PW=$(perl -e 'print crypt($ARGV[0], "qemuonarm")', $PASSWD)
-
-USERADD_CMD="useradd -G ${DEFGROUPS} -s /bin/bash -m -p ${PW} -c \"${FULLNAME}\" ${NEWUSER} || true"
-if [ ! "${NEWUSER}" ] || [ ! "${PASSWD}" ];then
-    USERADD_CMD='PACKAGE="oem-config"
-echo "I: Enabling firstboot configuration"
-if [ -n "$(dpkg -l xserver-xorg 2>/dev/null|grep ^ii)" ];then
-    if [ $(which gdm) ];then
-        PACKAGE="oem-config-gtk"
-    elif [ $(which kdm) ];then
-        PACKAGE="oem-config-kde"
-    fi
-fi
-
-apt-get install -y --no-install-recommends $PACKAGE'
-    OEM_CONFIG_ENABLE="touch /var/lib/oem-config/run
-rm /usr/lib/ubiquity/plugins/ubi-tasks.py*"
-fi
 
 if [ "$NOROOT" ];then
     # create the rootfs directory to be filled latter
@@ -1010,16 +992,36 @@ PKGCOUNT=\$(LANG=C apt-get -s install ${SELECTION} |grep "newly installed"|cut -
 echo "packagecount=\${PKGCOUNT:-1}"
 [ -z "${SELECTION}" ] || apt-get -y ${APT_FORCE} install ${SELECTION}
 
-${KERNEL_IMAGE_CMD}
-${KERNEL_IMAGE_CREATE_INITRAMFS}
-
 groupadd admin || true
-
 echo '%admin  ALL=(ALL) ALL' >>/etc/sudoers
 
-${USERADD_CMD}
+if [ "${NEWUSER}" ] && [ "${PASSWD}" ];then
+    if ! ERROR=\$(useradd -G "${DEFGROUPS}" -s /bin/bash -m -p ${PW} -c "${FULLNAME}" ${NEWUSER} 2>&1);then
+        echo "E: Failed to add user '${NEWUSER}'"
+        echo "E: \$ERROR"
+        echo "E: Besides possible user name conflicts, while adding the user" \
+             "a new group is created with the same name as the user, so" \
+             "avoid using existing group names"
+        exit 1
+    fi
+else
+    echo "I: Enabling firstboot configuration (as no user/password" \
+         "definition was found at the argument list)"
+    PACKAGE="oem-config"
+    if [ -n "\$(dpkg -l xserver-xorg 2>/dev/null|grep ^ii)" ];then
+        if [ \$(which gdm) ];then
+            PACKAGE="oem-config-gtk"
+        elif [ \$(which kdm) ];then
+            PACKAGE="oem-config-kde"
+        fi
+    fi
+    apt-get install -y --no-install-recommends \$PACKAGE
+    touch /var/lib/oem-config/run
+    rm /usr/lib/ubiquity/plugins/ubi-tasks.py*
+fi
 
-${OEM_CONFIG_ENABLE}
+${KERNEL_IMAGE_CMD}
+${KERNEL_IMAGE_CREATE_INITRAMFS}
 
 ${PACKAGE_CLEANUP_SUB}
 
