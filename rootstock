@@ -273,17 +273,20 @@ mount_image()
 
 umount_image()
 {
-    if [ "$(mount | grep ${MOUNTPOINT})" ];then
+    if grep -q ${MOUNTPOINT} /proc/mounts; then
         log "I: Umounting temporary Image"
         if [ "$NOROOT" ];then
             fusermount -z -u $MOUNTPOINT >>$LOG 2>&1
         else
             # be sure we unmount everything
-            if [ "$(mount | grep ${MOUNTPOINT}/dev/pts)" ];then
+            if grep -q ${MOUNTPOINT}/dev/pts /proc/mounts; then
                 umount -f ${MOUNTPOINT}/dev/pts
             fi
-            if [ "$(mount | grep ${MOUNTPOINT}/proc)" ];then
+            if grep -q ${MOUNTPOINT}/proc /proc/mounts; then
                 umount -f ${MOUNTPOINT}/proc
+            fi
+            if grep -q ${MOUNTPOINT}/sys /proc/mounts; then
+                umount -f ${MOUNTPOINT}/sys
             fi
             if [ ! "$IS_NATIVE" ]; then
                 umount -l $MOUNTPOINT >>$LOG 2>&1
