@@ -653,7 +653,7 @@ EXRA_MIRROR_CMD=""
 GETOPT=`getopt -o hf:l:p:n:i:g:m:c:t:x:d:q --long help,fqdn:,login:,\
 password:,fullname:,seed:,imagesize:,manifest:,mirror:,components:,timezone:,\
 kblayout:,kbmodel:,kbvariant:,kboptions:,locale:,keepimage,notarball,script:,\
-serial::,doswap,swapsize:,dist:,quiet,kernel-image:,copy-package-cache,\
+serial:,doswap,swapsize:,dist:,quiet,kernel-image:,copy-package-cache,\
 restore-package-cache,clean-package-cache,extra-mirror:,no-root,version \
 -n "$PROGRAM" -- "$@"`
 if [ $? != 0 ]; then usage; exit 1; fi
@@ -753,11 +753,9 @@ while true ; do
             shift 2
             ;;
         --serial)
-            case "$2" in
-                "") SERIAL_TTYS="ttyS0"; shift 2 ;;
-                *) SERIAL_TTYS="$2"; shift 2 ;;
-            esac
+            SERIAL_TTYS="$2"
             SERIAL=1
+            shift 2
             ;;
         --doswap)
             NOSWAP=""
