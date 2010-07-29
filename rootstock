@@ -313,7 +313,7 @@ run_first_stage()
     DEFOPTS="--foreign --arch=armel"
 
     if [ "$RESTORE_PACKAGE_CACHE" ];then
-        if [ ! -d $CACHEDIR ];then
+        if [ ! -d $CACHEDIR ] || [ ! -f $TARBALL ];then
             error "E: Error, no pre-cached packages found !"
             error "E: please run rootstock with --copy-package-cache first"
             NOSAVELOG=1
