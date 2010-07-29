@@ -456,7 +456,8 @@ run_chroot()
         exit 1
     } &
 
-    echo $! > $CHRPID
+    PID=$!
+    echo $PID > $CHRPID
     while read line; do
         if [ ! "$(echo $line|grep 'qemu: Unsupported syscall')" ] && \
             [ ! "$(echo $line|grep 'Unsupported ioctl:')" ];then
@@ -466,7 +467,7 @@ run_chroot()
         fi
     done <$CHRFIFO
 
-    wait `cat $CHRPID`
+    wait $PID
 
     umount -f ${ROOTFS}/dev/pts
     umount -f ${ROOTFS}/proc
