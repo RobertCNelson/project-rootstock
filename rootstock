@@ -358,7 +358,7 @@ run_first_stage()
         cp $ROOTFS/var/lib/apt/lists/*Release $CACHEDIR/dists/$DIST/Release
     fi
 
-    if [ ! "$(which qemu-arm-static)" -a ! "$IS_NATIVE " ] || [ "$NOROOT" ];then
+    if [ ! "$(which qemu-arm-static)" -a ! "$IS_NATIVE" ] || [ "$NOROOT" ];then
         SECOND_STAGE="/debootstrap/debootstrap --second-stage"
     else
         if [ ! "$IS_NATIVE" ];then
