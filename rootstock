@@ -1007,10 +1007,15 @@ if [ -e /etc/apt/apt.conf.d/proxy ];then
 fi
 
 if [ "$http_proxy" ];then
-    # translate name to IP so it can be used inside qemu (mDNS)
+    # try to translate name to IP so it can be used inside qemu (mDNS)
     PROXY_ADDR=$(echo $http_proxy | sed -e "s/\(.*\/\/\)\?\(.*@\)\?//" -e "s/:.*//")
     PROXY_IP=$(getent hosts $PROXY_ADDR | head -n 1 | awk -F' ' '{print $1}')
-    PROXY=$(echo $http_proxy | sed -e "s/$PROXY_ADDR:/$PROXY_IP:/")
+    if [ "$PROXY_IP" ];then
+        PROXY=$(echo $http_proxy | sed -e "s/$PROXY_ADDR:/$PROXY_IP:/")
+    else
+        # could not translate, using original content
+        PROXY=$http_proxy
+    fi
 fi
 
 # set up basic networking
