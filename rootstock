@@ -66,6 +66,13 @@ cleanup()
         log "I: Killed qemu... "
     fi
 
+    # kill chroot environment if its running
+    if [ -e ${CHRPID} ];then
+        CPID=$(cat ${CHRPID})
+        kill -9 $CPID >/dev/null 2>&1
+        log "I: Killed chroot... "
+    fi
+
     for i in 1 2 3 4 5; do
         echo -n '.'
         sleep 1
@@ -172,7 +179,7 @@ Keyboard:
 Output:
 
 --keepimage
-    Keep the qemu image instead of deleting it
+    Keep the qemu image instead of deleting it (disabled for native)
 --notarball
     Do not roll a tarball of the rootfs (autosets --keepimage)
 
@@ -195,7 +202,7 @@ Advanced:
 --extra-mirror
     additional mirror to use
 --no-root
-    run rootstock without requiring root access (slower)
+    run rootstock without requiring root access (slower as uses a full vm)
 
 Examples:
 
@@ -234,7 +241,7 @@ savelog()
 create_qemu_image()
 {
     log "I: Creating temporary qemu Image to be used as rootfs"
-    LANG=C qemu-img create $IMAGENAME ${IMAGESIZE}k >$LOG 2>&1
+    LANG=C qemu-img create $IMAGENAME ${IMAGESIZE}k >>$LOG 2>&1
     LANG=C mkfs.ext3 -F $IMAGENAME >>$LOG 2>&1
 }
 
@@ -259,7 +266,7 @@ mount_image()
     fi
     if [ "$NOROOT" ];then
         fuseext2 -o ro,direct_io -s $IMAGENAME $MOUNTPOINT >>$LOG 2>&1
-    else
+    elif [ ! "$IS_NATIVE" ];then
         mount -o loop $IMAGENAME $MOUNTPOINT >>$LOG 2>&1
     fi
 }
@@ -271,7 +278,16 @@ umount_image()
         if [ "$NOROOT" ];then
             fusermount -z -u $MOUNTPOINT >>$LOG 2>&1
         else
-            umount -l $MOUNTPOINT >>$LOG 2>&1
+            # be sure we unmount everything
+            if [ "$(mount | grep ${MOUNTPOINT}/dev/pts)" ];then
+                umount -f ${MOUNTPOINT}/dev/pts
+            fi
+            if [ "$(mount | grep ${MOUNTPOINT}/proc)" ];then
+                umount -f ${MOUNTPOINT}/proc
+            fi
+            if [ ! "$IS_NATIVE" ]; then
+                umount -l $MOUNTPOINT >>$LOG 2>&1
+            fi
         fi
     fi
 }
@@ -322,6 +338,10 @@ run_first_stage()
         EXTRAOPTS="--unpack-tarball=$TARBALL"
     fi
 
+    # recreate to avoid interrupted syscall
+    rm -f $DBFIFO
+    mkfifo $DBFIFO
+
     # using fakeroot so we're able to create the base rootfs as user
     LANG=C fakeroot debootstrap $DEFOPTS $EXTRAOPTS $DIST $ROOTFS $DMIRROR >$DBFIFO 2>&1 &
 
@@ -335,11 +355,13 @@ run_first_stage()
         cp $ROOTFS/var/lib/apt/lists/*Release $CACHEDIR/dists/$DIST/Release
     fi
 
-    if [ ! $(which qemu-arm-static) ] || [ "$NOROOT" ];then
+    if [ ! "$(which qemu-arm-static)" -a ! "$IS_NATIVE " ] || [ "$NOROOT" ];then
         SECOND_STAGE="/debootstrap/debootstrap --second-stage"
     else
-        mkdir -p $ROOTFS/usr/bin/
-        cp $(which qemu-arm-static) $ROOTFS/usr/bin/
+        if [ ! "$IS_NATIVE" ];then
+            mkdir -p $ROOTFS/usr/bin/
+            cp $(which qemu-arm-static) $ROOTFS/usr/bin/
+        fi
         chroot $ROOTFS debootstrap/debootstrap --second-stage >$DBFIFO 2>&1 &
         SECOND_STAGE=""
 
@@ -409,6 +431,47 @@ run_vm()
     rm -f $QEMUPID
 
     log "I: Virtual Machine done"
+}
+
+run_chroot()
+{
+    log "I: Using Chroot for installer"
+
+    mkfifo $CHRFIFO
+
+    # mounting required mount points
+    mount -t proc none ${ROOTFS}/proc
+    mkdir -p ${ROOTFS}/dev/pts
+    mount -t devpts devpts ${ROOTFS}/dev/pts
+
+    # do the work
+    chroot $ROOTFS /bin/installer >$CHRFIFO 2>&1 || {
+        error "E: Second stage build in chroot failed !"
+        error "E: Please see the log to see what went wrong."
+        rm -f $CHRPID
+        (cleanup)
+        exit 1
+    } &
+
+    echo $! > $CHRPID
+    while read line; do
+        if [ ! "$(echo $line|grep 'qemu: Unsupported syscall')" ] && \
+            [ ! "$(echo $line|grep 'Unsupported ioctl:')" ];then
+            log "${line}"
+        else
+            echo "${line}" >> $LOG
+        fi
+    done <$CHRFIFO
+
+    wait `cat $CHRPID`
+
+    umount -f ${ROOTFS}/dev/pts
+    umount -f ${ROOTFS}/proc
+
+    rm -f $CHRFIFO
+    rm -f $CHRPID
+
+    log "I: Chroot done"
 }
 
 setup_serial()
@@ -636,6 +699,8 @@ QEMUPID="${BUILDDIR}/qemu.pid"
 QEMUFIFO="${BUILDDIR}/qemufifo"
 DBPID="${BUILDDIR}/debootstrap.pid"
 DBFIFO="${BUILDDIR}/dbfifo"
+CHRFIFO="${BUILDDIR}/chrootfifo"
+CHRPID="${BUILDDIR}/chroot.pid"
 DIR="$(pwd)"
 NOSWAP=1
 SWAPSIZE=256
@@ -831,6 +896,31 @@ if [ $(id -u) != 0 ] && [ ! "$NOROOT" ];then
     exit 2
 fi
 
+# check if we're doing native arm work
+ARCH=$(uname -m)
+if echo $ARCH | grep -q "^armv[5-7].*"; then
+    IS_NATIVE=1
+    KEEPIMAGE=""
+
+    # check if we're able to run the desired arm code
+    if [ "$ARCH" = "armv5tel" ] && [ "$DIST" != "jaunty" ];then
+        echo "Only jaunty is supported for armv5"
+        exit 2
+    elif [ "$ARCH" = "armv6l" ] && [ "$DIST" != "jaunty" ] && \
+                    [ "$DIST" != "karmic" ];then
+        echo "Only jaunty and karmic are supported for armv6"
+        exit 2
+    fi
+fi
+
+# in case the user request to skip tarball and we're native
+if [ "$IS_NATIVE" ] && [ "$NOTARBALL" ];then
+    echo "In a native run only a tarball is generated, so requesting --notarball makes rootstock create nothing"
+    exit 2
+fi
+
+log "I: Running on a $ARCH machine"
+
 # set up the cache DIR and clean it if needed
 if [ "$NOROOT" ];then
     CACHEDIR="${HOME}/.cache/rootstock/archives"
@@ -841,7 +931,16 @@ if [ "$CLEAN_PACKAGE_CACHE" ];then
     clean_package_cache
 fi
 
-if [ ! $(which qemu-system-arm) ];then
+# find if we should run full vm or just user emulation
+if [ "$NOROOT" ] || [ ! $(which qemu-arm-static) ] && [ ! "$IS_NATIVE" ];then
+    log "I: Second stage will run inside a full virtual machine"
+    RUNVM=1
+else
+    # when running in a chroot environment swap is useless
+    NOSWAP=1
+fi
+
+if [ "$RUNVM" ] && [ ! $(which qemu-system-arm) ];then
     echo "qemu not installed, please use:"
     echo "sudo apt-get install qemu"
     echo "(or on ubuntu > karmic sudo apt-get install qemu-kvm-extras)"
@@ -868,14 +967,17 @@ ZONE=${TZONE#*/}
 # generate the user password
 PW=$(perl -e 'print crypt($ARGV[0], "qemuonarm")', $PASSWD)
 
-if [ "$NOROOT" ];then
-    # create the rootfs directory to be filled latter
-    mkdir -p $ROOTFS >>$LOG 2>&1
-else
-    # if we're root, we use qemu and mount the image as loop, much faster
-    create_qemu_image
-    mount_image
+# set up the rootfs
+if [ ! "$NOROOT" ]; then
     ROOTFS=$MOUNTPOINT
+    if [ ! "$IS_NATIVE" ];then
+        # if we're root and not native, use qemu and mount the image as loop
+        create_qemu_image
+        mount_image
+    fi
+fi
+if [ ! -d $ROOTFS ];then
+    mkdir -p $ROOTFS >>$LOG 2>&1
 fi
 
 run_first_stage
@@ -945,16 +1047,17 @@ if [ -f "/debootstrap/debootstrap" ];then
     ${SECOND_STAGE}
 fi
 
-echo "I: Starting basic services in VM"
+if [ "$RUNVM" ];then
+    echo "I: Starting basic services in VM"
 
-mount -t proc proc /proc
-mount -t sysfs sys /sys
-mkdir -p /dev/pts
-mount -t devpts devpts /dev/pts
+    mount -t proc proc /proc
+    mount -t sysfs sys /sys
+    mkdir -p /dev/pts
+    mount -t devpts devpts /dev/pts
 
-udevd --daemon &
-
-hostname -F /etc/hostname
+    udevd --daemon &
+    hostname -F /etc/hostname
+fi
 
 dpkg-divert --add --local --divert /usr/sbin/invoke-rc.d.rootstock --rename /usr/sbin/invoke-rc.d
 cp /bin/true /usr/sbin/invoke-rc.d
@@ -964,9 +1067,11 @@ ${SWAPCMD}
 echo "deb ${MIRROR} ${DIST} ${COMPONENTS}" >/etc/apt/sources.list
 ${EXRA_MIRROR_CMD}
 
-ifconfig lo up
-ifconfig eth0 up
-dhclient eth0
+if [ "$RUNVM" ];then
+    ifconfig lo up
+    ifconfig eth0 up
+    dhclient eth0
+fi
 
 locale-gen --no-purge en_GB.UTF-8 || true
 locale-gen --no-purge ${NEWLOCALE} || true
@@ -1033,9 +1138,10 @@ if [ -x /rootstock-user-script ]; then
     rm -f /rootstock-user-script
 fi
 
-mount -n -o remount,ro -t ext3 /dev/sda / || true
-
-rm /bin/installer && reboot -fp
+if [ "$RUNVM" ];then
+    mount -n -o remount,ro -t ext3 /dev/sda / || true
+    rm /bin/installer && reboot -fp
+fi
 
 EOF
 
@@ -1055,15 +1161,19 @@ fi
 mv $BUILDDIR/installer $ROOTFS/bin/ >>$LOG 2>&1
 chmod +x $ROOTFS/bin/installer >>$LOG 2>&1
 
-if [ "$NOROOT" ];then
-    # if user, creates the ext3 fs for qemu, based on the rootfs
-    create_rootfs_image
+# runs the second stage
+if [ "$RUNVM" ];then
+    if [ "$NOROOT" ];then
+        # if user, creates the ext3 fs for qemu, based on the rootfs
+        create_rootfs_image
+    else
+        umount_image
+    fi
+    run_vm
 else
+    run_chroot
     umount_image
 fi
-
-# run vm for second stage
-run_vm
 
 # cache packages on host machine
 if [ "$COPY_PACKAGE_CACHE" ];then
