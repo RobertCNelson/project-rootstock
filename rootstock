@@ -265,7 +265,7 @@ mount_image()
         mkdir -p $MOUNTPOINT >>$LOG 2>&1
     fi
     if [ "$NOROOT" ];then
-        fuseext2 -o ro,direct_io -s $IMAGENAME $MOUNTPOINT >>$LOG 2>&1
+        fuseext2 -o rw+,direct_io -s $IMAGENAME $MOUNTPOINT >>$LOG 2>&1
     elif [ ! "$IS_NATIVE" ];then
         mount -o loop $IMAGENAME $MOUNTPOINT >>$LOG 2>&1
     fi
