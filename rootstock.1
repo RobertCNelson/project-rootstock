@@ -67,7 +67,7 @@ apt mirror to use (i.e. http://ports.ubuntu.com/ubuntu\-ports)
 Archive components
 (default: main,universe)
 .PP
-\fB\-d\fR \fB\-\-dist\fR (jaunty or karmic)
+\fB\-d\fR \fB\-\-dist\fR (jaunty, karmic, lucid or maverick)
 .IP
 Specify Release to build
 (default: maverick)
@@ -129,7 +129,7 @@ Output:
 .PP
 \fB\-\-keepimage\fR
 .IP
-Keep the qemu image instead of deleting it
+Keep the qemu image instead of deleting it (disabled for native)
 .PP
 \fB\-\-notarball\fR
 .IP
@@ -166,14 +166,14 @@ additional mirror to use
 .PP
 \fB\-\-no\-root\fR
 .IP
-run rootstock without requiring root access (slower)
+run rootstock without requiring root access (slower as uses a full vm)
 .SH EXAMPLES
 
 Xubuntu\-Desktop (as root): rootstock \fB\-f\fR host \fB\-l\fR user \fB\-p\fR temppwd \fB\-i\fR 2G \fB\-s\fR xubuntu\-desktop
 .PP
 Minimal Ubuntu (as user): rootstock \fB\-f\fR host \fB\-l\fR user \fB\-p\fR temppwd \fB\-i\fR 512M \fB\-\-no\-root\fR \fB\-s\fR ubuntu\-minimal
 .SH AUTHOR
-Written by Oliver Grawert <ogra@canonical.com>.
+Written by Oliver Grawert <ogra@canonical.com> and Ricardo Salveti <ricardo.salveti@canonical.com>.
 .SH "REPORTING BUGS"
 Report bugs at https://launchpad.net/project\-rootstock/+filebug
 .SH COPYRIGHT

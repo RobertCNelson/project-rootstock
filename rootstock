@@ -141,7 +141,7 @@ Additional:
 -c --components <csv list>
     Archive components
     (default: main,universe)
--d --dist (jaunty or karmic)
+-d --dist (jaunty, karmic, lucid or maverick)
     Specify Release to build
     (default: `lsb_release -cs`)
 -t --timezone <timezone>
