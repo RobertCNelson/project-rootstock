@@ -36,7 +36,7 @@ set -e
 trap cleanup 1 2 3 6 15
 
 PROGRAM="$(basename $0)"
-VERSION="0.1.99.3"
+VERSION="0.1.99.4"
 
 log()
 {
