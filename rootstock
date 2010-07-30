@@ -937,7 +937,7 @@ if [ "$CLEAN_PACKAGE_CACHE" ];then
 fi
 
 # find if we should run full vm or just user emulation
-if [ "$NOROOT" ] || [ ! $(which qemu-arm-static) ] && [ ! "$IS_NATIVE" ];then
+if [ "$NOROOT" ] || [ ! $(which qemu-arm-static) -a ! "$IS_NATIVE" ];then
     log "I: Second stage will run inside a full virtual machine"
     RUNVM=1
 else
