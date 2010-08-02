@@ -212,6 +212,8 @@ Xubuntu-Desktop (as root): rootstock -f host -l user -p temppwd -i 2G -s xubuntu
 Minimal Ubuntu (as user): rootstock -f host -l user -p temppwd -i 512M --no-root -s ubuntu-minimal
 
 Report bugs at https://launchpad.net/project-rootstock/+filebug
+
+For Known Issues, please read https://wiki.ubuntu.com/ARM/RootStock/KnownIssues.
 EOF
     exit 0
 }
