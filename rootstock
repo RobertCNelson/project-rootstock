@@ -535,15 +535,26 @@ setup_kernel_image()
 {
     log "I: Downloading kernel image (deb) from external site"
 
-    mkdir -p $DIR/dl/
-    wget --directory-prefix=$DIR/dl/ --quiet $KERNEL_IMG
+    KERNEL_IMG=${KERNEL_URL##*/}
+    test -d $ROOTFS/tmp/ || mkdir -p $ROOTFS/tmp/
 
-    KERNEL_IMG=${KERNEL_IMG##*/}
+    if [ "$RESTORE_PACKAGE_CACHE" ] && \
+        [ -f "$CACHEDIR/kernel/$KERNEL_IMG" ];then
+        log "I: Found cached $KERNEL_IMG, skipping download"
+        cp $CACHEDIR/kernel/$KERNEL_IMG $ROOTFS/tmp
+    else
+        KERNELDIR=$(mktemp -d)
+        wget --directory-prefix=$KERNELDIR --quiet $KERNEL_URL
+        log "I: $KERNEL_IMG download complete"
+        cp $KERNELDIR/$KERNEL_IMG $ROOTFS/tmp
 
-    test -d $ROOTFS/tmp/|| mkdir -p $ROOTFS/tmp/
-    cp $DIR/dl/$KERNEL_IMG  $ROOTFS/tmp
+        if [ "$COPY_PACKAGE_CACHE" ];then
+            mkdir -p $CACHEDIR/kernel
+            cp $KERNELDIR/$KERNEL_IMG $CACHEDIR/kernel
+        fi
+        rm -rfd $KERNELDIR
+    fi
 
-    log "I: $KERNEL_IMG download complete"
     #Hack dpkg -i fails, no postinstall script is run anyways, so lets just extract it.
     KERNEL_IMAGE_CMD="dpkg -x /tmp/$KERNEL_IMG /"
 
@@ -571,13 +582,15 @@ extract_kernel_image()
 {
     mount_image
 
-    log "I: Extracting vmlinuz from *.deb"
-    mkdir -p $DIR/dl/tmp/
-    dpkg -x $DIR/dl/$KERNEL_IMG $DIR/dl/tmp/
-    cp $DIR/dl/tmp/boot/vmlinuz-* $DIR
-    rm -rfd $DIR/dl/
-    cp $MOUNTPOINT/boot/initrd.img-* $DIR
-    log "I: vmlinuz & initrd.img ready for (mkimage/etc) tool"
+    if ls $MOUNTPOINT/boot/vmlinuz-* >/dev/null 2>&1;then
+        log "I: Found vmlinuz at the rootfs, copying it to $DIR"
+        cp $MOUNTPOINT/boot/vmlinuz-* $DIR
+    fi
+
+    if ls $MOUNTPOINT/boot/initrd.img-* >/dev/null 2>&1;then
+        log "I: Found initrd.img at the rootfs, copying it to $DIR"
+        cp $MOUNTPOINT/boot/initrd.img-* $DIR
+    fi
 
     umount_image
 }
@@ -847,7 +860,7 @@ while true ; do
             ;;
         --kernel-image)
             KERNEL_IMAGE=1
-            KERNEL_IMG="$2"
+            KERNEL_URL="$2"
             shift 2
             ;;
         --copy-package-cache)
@@ -1193,6 +1206,9 @@ if [ "$COPY_PACKAGE_CACHE" ];then
     save_package_cache
 fi
 
+# save vmlinuz and initrd.img for further usage
+extract_kernel_image
+
 # build a rootfs tarball
 if [ ! "$NOTARBALL" ];then
     roll_tarball
@@ -1201,11 +1217,6 @@ fi
 # save a qemu image
 if [ "$KEEPIMAGE" ];then
     save_qemu_img
-fi
-
-# create boot image
-if [ "$KERNEL_IMAGE" ];then
-    extract_kernel_image
 fi
 
 # log, clean up and save a log
