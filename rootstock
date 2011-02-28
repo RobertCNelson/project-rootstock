@@ -368,7 +368,7 @@ run_first_stage()
             mkdir -p $ROOTFS/usr/bin/
             cp $(which qemu-arm-static) $ROOTFS/usr/bin/
         fi
-        chroot $ROOTFS debootstrap/debootstrap --second-stage >$DBFIFO 2>&1 &
+        $CHROOT $ROOTFS debootstrap/debootstrap --second-stage >$DBFIFO 2>&1 &
         SECOND_STAGE=""
 
 		echo $! > $DBPID
@@ -451,7 +451,7 @@ run_chroot()
     mount -t devpts devpts ${ROOTFS}/dev/pts
 
     # do the work
-    chroot $ROOTFS /bin/installer >$CHRFIFO 2>&1 || {
+    $CHROOT $ROOTFS /bin/installer >$CHRFIFO 2>&1 || {
         error "E: Second stage build in chroot failed !"
         error "E: Please see the log to see what went wrong."
         rm -f $CHRPID
@@ -621,7 +621,7 @@ save_package_cache()
     if [ "$NOROOT" ];then
         rm -f $MOUNTPOINT/var/cache/apt/archives/*.deb
     else
-        chroot $MOUNTPOINT apt-get clean
+        $CHROOT $MOUNTPOINT apt-get clean
     fi
 
     umount_image
@@ -733,6 +733,7 @@ PACKAGE_CLEANUP_SUB="${PACKAGE_CLEANUP}"
 APT_UPDATE="apt-get update"
 APT_FORCE=""
 EXRA_MIRROR_CMD=""
+CHROOT="eval TMPDIR=/tmp chroot"
 
 # parse commandline options
 GETOPT=`getopt -o hf:l:p:n:i:g:m:c:t:x:d:q --long help,fqdn:,login:,\
