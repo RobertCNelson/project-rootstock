@@ -1090,6 +1090,7 @@ cp /bin/true /usr/sbin/invoke-rc.d
 ${SWAPCMD}
 
 echo "deb ${MIRROR} ${DIST} ${COMPONENTS}" >/etc/apt/sources.list
+echo "deb ${MIRROR} ${DIST}-updates ${COMPONENTS}" >>/etc/apt/sources.list
 ${EXRA_MIRROR_CMD}
 
 if [ "$RUNVM" ];then
