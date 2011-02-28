@@ -736,7 +736,7 @@ EXRA_MIRROR_CMD=""
 CHROOT="eval TMPDIR=/tmp chroot"
 
 # parse commandline options
-GETOPT=`getopt -o hf:l:p:n:i:g:m:c:t:x:d:q --long help,fqdn:,login:,\
+GETOPT=`getopt -o hf:l:p:n:s:i:g:m:c:t:x:d:q --long help,fqdn:,login:,\
 password:,fullname:,seed:,imagesize:,manifest:,mirror:,components:,timezone:,\
 kblayout:,kbmodel:,kbvariant:,kboptions:,locale:,keepimage,notarball,script:,\
 serial:,doswap,swapsize:,dist:,quiet,kernel-image:,copy-package-cache,\
