@@ -1,3 +1,8 @@
+==NOTE:==
+
+This is a fork of Ubuntu's RootStock, therefore not all bugs apply to Ubuntu's RootStock source, so please email me first (bugs@rcn-ee.com), before bugging the original authors of this great script...
+
+rcn-ee
 
 You will need to install on your Ubuntu machine:
  * qemu
