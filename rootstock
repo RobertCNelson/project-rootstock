@@ -652,7 +652,7 @@ roll_tarball()
     mount_image
 
     cd $MOUNTPOINT >>$LOG 2>&1
-    LANG=C tar cvf ../armel-rootfs-$STAMP.tar . >>$LOG 2>&1
+    LANG=C tar --numeric-owner -cvf ../armel-rootfs-$STAMP.tar . >>$LOG 2>&1
     mv ../armel-rootfs-$STAMP.tar $DIR >>$LOG 2>&1
 
     echo "I: ARM rootfs created as $DIR/armel-rootfs-$STAMP.tar"
