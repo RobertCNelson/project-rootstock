@@ -551,6 +551,7 @@ setup_kernel_image()
         cp $CACHEDIR/kernel/$KERNEL_IMG $ROOTFS/tmp
     else
         KERNELDIR=$(mktemp -d)
+        log "I: wget --directory-prefix=$KERNELDIR $KERNEL_URL"
         wget --directory-prefix=$KERNELDIR --quiet $KERNEL_URL
         log "I: $KERNEL_IMG download complete"
         cp $KERNELDIR/$KERNEL_IMG $ROOTFS/tmp
