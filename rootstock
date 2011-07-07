@@ -323,7 +323,7 @@ run_first_stage()
     EXTRAOPTS=""
     TARBALL=$CACHEDIR/debootstrap.tgz
     DMIRROR="$MIRROR"
-    DEFOPTS="--foreign --arch=armel"
+    DEFOPTS="--foreign"
 
     if [ "$RESTORE_PACKAGE_CACHE" ];then
         if [ ! -d $CACHEDIR ] || [ ! -f $TARBALL ];then
@@ -342,7 +342,7 @@ run_first_stage()
         EXTRAOPTS="--keep-debootstrap-dir --make-tarball=$TARBALL"
         mkdir -p $CACHEDIR
 
-        LANG=C fakeroot debootstrap $DEFOPTS $EXTRAOPTS $DIST $ROOTFS $DMIRROR >$DBFIFO 2>&1 &
+        LANG=C fakeroot debootstrap $DEFOPTS --arch=$DEFARCH $EXTRAOPTS $DIST $ROOTFS $DMIRROR >$DBFIFO 2>&1 &
         echo $! > $DBPID
         while read line; do
             log "${line}"
@@ -356,7 +356,7 @@ run_first_stage()
     mkfifo $DBFIFO
 
     # using fakeroot so we're able to create the base rootfs as user
-    LANG=C fakeroot debootstrap $DEFOPTS $EXTRAOPTS $DIST $ROOTFS $DMIRROR >$DBFIFO 2>&1 &
+    LANG=C fakeroot debootstrap $DEFOPTS --arch=$DEFARCH $EXTRAOPTS $DIST $ROOTFS $DMIRROR >$DBFIFO 2>&1 &
 
     echo $! > $DBPID
     while read line; do
@@ -570,6 +570,7 @@ setup_kernel_image()
     KERNEL_IMG_REL=$(echo $KERNEL_IMG_REL | awk -F_ '{print $1}')
 
     KERNEL_IMAGE_CREATE_INITRAMFS="update-initramfs -c -k $KERNEL_IMG_REL"
+    KERNEL_IMAGE_DEPMOD="depmod $KERNEL_IMG_REL"
 }
 
 get_vm_kernel()
@@ -738,15 +739,15 @@ PACKAGE_CLEANUP="apt-get clean"
 PACKAGE_CLEANUP_SUB="${PACKAGE_CLEANUP}"
 APT_UPGRADE=""
 APT_UPDATE="apt-get update"
-APT_FORCE=""
+APT_FORCE="--force-yes"
 EXRA_MIRROR_CMD=""
 CHROOT="eval TMPDIR=/tmp chroot"
 
 # parse commandline options
-GETOPT=`getopt -o hf:l:p:n:s:i:g:m:c:t:x:d:q --long help,fqdn:,login:,\
+GETOPT=`getopt -o hf:l:p:n:s:i:g:m:c:t:x:d:a:q --long help,fqdn:,login:,\
 password:,fullname:,seed:,imagesize:,manifest:,mirror:,components:,timezone:,\
 kblayout:,kbmodel:,kbvariant:,kboptions:,locale:,keepimage,notarball,script:,\
-serial:,sources:,doswap,swapsize:,dist:,quiet,kernel-image:,copy-package-cache,\
+serial:,sources:,doswap,swapsize:,dist:,arch:,quiet,kernel-image:,copy-package-cache,\
 restore-package-cache,clean-package-cache,extra-mirror:,no-root,version,apt-upgrade \
 -n "$PROGRAM" -- "$@"`
 if [ $? != 0 ]; then usage; exit 1; fi
@@ -857,7 +858,7 @@ while true ; do
             shift 2
             ;;
         --apt-upgrade)
-            APT_UPGRADE="apt-get upgrade -y"
+            APT_UPGRADE="apt-get upgrade -y --force-yes"
             shift
             ;;
         --doswap)
@@ -870,6 +871,10 @@ while true ; do
             ;;
         -d|--dist)
             DIST="$2"
+            shift 2
+            ;;
+        -a|--arch)
+            DEFARCH="$2"
             shift 2
             ;;
         -q|--quiet)
@@ -926,6 +931,15 @@ done
 # check if we have at least hostname
 if [ ! "${FQDN}" ] && [ ! "$CLEAN_PACKAGE_CACHE" ];then
     usage
+fi
+
+if [ "$DEFARCH" = "armhf" ];then
+    if [ ! $DEB_MIRROR ] && [ ! $DEB_COMPONENTS };then
+		echo "for debian armhf add: --mirror http://ftp.debian-ports.org/debian/"
+		echo "and add: --components \"main\""
+		usage
+	fi
+    IS_DEBIAN=1
 fi
 
 if [ "$DIST" = "lenny" ] || [ "$DIST" = "squeeze" ] || [ "$DIST" = "wheezy" ] || [ "$DIST" = "sid" ];then
@@ -1172,7 +1186,11 @@ else
 fi
 
 ${KERNEL_IMAGE_CMD}
+if which update-initramfs >/dev/null 2>&1; then
 ${KERNEL_IMAGE_CREATE_INITRAMFS}
+else
+${KERNEL_IMAGE_DEPMOD}
+fi
 
 ${PACKAGE_CLEANUP_SUB}
 
@@ -1182,6 +1200,8 @@ passwd <<ROOTPASSWD
 root
 root
 ROOTPASSWD
+
+echo "S:2345:respawn:/sbin/getty 115200 ${SERIAL_TTYS}" >> /etc/inittab
 
 #if which dpkg-vendor >/dev/null 2>&1 && [ "`dpkg-vendor --query vendor`" = Ubuntu ]; then
 else
@@ -1210,7 +1230,9 @@ if [ "$USER_SOURCES" ]; then
 else
 	# Use system default deb source
     echo "deb ${MIRROR} ${DIST} ${COMPONENTS}" >$ROOTFS/etc/apt/sources.list
+if [ "$DIST" != "unstable" ];then
     echo "deb ${MIRROR} ${DIST}-updates ${COMPONENTS}" >>$ROOTFS/etc/apt/sources.list
+fi
 
 	# Add extra debsource
     if [ "$EXTRAMIRROR" ];then
