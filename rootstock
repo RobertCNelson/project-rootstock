@@ -560,7 +560,7 @@ setup_kernel_image()
             mkdir -p $CACHEDIR/kernel
             cp $KERNELDIR/$KERNEL_IMG $CACHEDIR/kernel
         fi
-        rm -rfd $KERNELDIR
+        rm -rf $KERNELDIR
     fi
 
     #Hack dpkg -i fails, no postinstall script is run anyways, so lets just extract it.
