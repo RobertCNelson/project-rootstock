@@ -579,7 +579,7 @@ setup_secondary_kernel_image()
 {
     log "I: Downloading secondary kernel image (deb) from external site"
 
-    SEC_KERNEL_IMG=${KERNEL_URL##*/}
+    SEC_KERNEL_IMG=${SEC_KERNEL_URL##*/}
     test -d $ROOTFS/tmp/ || mkdir -p $ROOTFS/tmp/
 
     if [ "$RESTORE_PACKAGE_CACHE" ] && \
