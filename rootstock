@@ -1187,8 +1187,10 @@ fi
 
 ${KERNEL_IMAGE_CMD}
 if which update-initramfs >/dev/null 2>&1; then
+:
 ${KERNEL_IMAGE_CREATE_INITRAMFS}
 else
+:
 ${KERNEL_IMAGE_DEPMOD}
 fi
 
