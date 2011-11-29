@@ -977,8 +977,8 @@ fi
 
 if [ "$DEFARCH" = "armhf" ];then
     if [ ! $DEB_MIRROR ] && [ ! $DEB_COMPONENTS };then
-		echo "for debian armhf add: --mirror http://ftp.debian-ports.org/debian/"
-		echo "and add: --components \"main\""
+		echo "for debian add: --mirror http://ftp.us.debian.org/debian/"
+		echo "and add: --components \"main contrib\""
 		usage
 	fi
     IS_DEBIAN=1
@@ -1288,7 +1288,7 @@ if [ "$USER_SOURCES" ]; then
 else
 	# Use system default deb source
     echo "deb ${MIRROR} ${DIST} ${COMPONENTS}" >$ROOTFS/etc/apt/sources.list
-if [ "$DIST" != "unstable" ];then
+if [ "$DIST" != "wheezy" ] || [ "$DIST" != "sid" ];then
     echo "deb ${MIRROR} ${DIST}-updates ${COMPONENTS}" >>$ROOTFS/etc/apt/sources.list
 fi
 
