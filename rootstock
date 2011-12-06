@@ -509,7 +509,7 @@ stop on runlevel 6
 respawn
 exec /sbin/getty 115200 $SERIAL_TTYS
 EOF
-    else
+    elif [ "$DIST" = "lucid" ] || [ "$DIST" = "natty" ] || [ "$DIST" = "maverick" ] || [ "$DIST" = "oneiric" ] || [ "$DIST" = "precise" ];then
         test -d $ROOTFS/etc/init/|| mkdir -p $ROOTFS/etc/init/
         cat > $ROOTFS/etc/init/$SERIAL_TTYS.conf <<EOF
 start on stopped rc RUNLEVEL=[2345]
