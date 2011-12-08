@@ -403,7 +403,7 @@ run_vm()
     if [ -n "$SWAPFILE" ];then
         SWAPDEV="-hdb $SWAPFILE"
     fi
-    QEMUOPTS="-M vexpress ${VMCPU:+-cpu $VMCPU} -kernel ${BUILDDIR}/qemu-vmlinuz -no-reboot -nographic -pidfile ${QEMUPID} -drive file=${IMAGENAME},aio=native,cache=none ${SWAPDEV} -m 256"
+    QEMUOPTS="-M versatilepb ${VMCPU:+-cpu $VMCPU} -kernel ${BUILDDIR}/qemu-vmlinuz -no-reboot -nographic -pidfile ${QEMUPID} -drive file=${IMAGENAME},aio=native,cache=none ${SWAPDEV} -m 256"
     APPEND="console=ttyAMA0,115200n8 root=/dev/sda rw mem=256M init=/bin/installer quiet"
     if [ ! "$NOROOT" ];then
         APPEND="${APPEND} devtmpfs.mount=0"
@@ -615,7 +615,7 @@ get_vm_kernel()
     if [ "$RESTORE_PACKAGE_CACHE" ];then
         cp $CACHEDIR/vmkernel/qemu-vmlinuz $BUILDDIR/qemu-vmlinuz
     else
-        KERNEL="http://ports.ubuntu.com/ubuntu-ports/dists/oneiric/main/installer-armel/current/images/linaro-vexpress/netboot/vmlinuz"
+        KERNEL="http://ports.ubuntu.com/ubuntu-ports/dists/lucid/main/installer-armel/current/images/versatile/netboot/vmlinuz"
         LANG=C wget -O $BUILDDIR/qemu-vmlinuz $KERNEL >>$LOG 2>&1
         if [ "$COPY_PACKAGE_CACHE" ];then
             mkdir -p $CACHEDIR/vmkernel/
