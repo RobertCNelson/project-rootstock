@@ -1288,8 +1288,10 @@ if [ "$USER_SOURCES" ]; then
 else
 	# Use system default deb source
     echo "deb ${MIRROR} ${DIST} ${COMPONENTS}" >$ROOTFS/etc/apt/sources.list
+    echo "deb-src ${MIRROR} ${DIST} ${COMPONENTS}" >>$ROOTFS/etc/apt/sources.list
 if [ "$DIST" != "wheezy" ] && [ "$DIST" != "sid" ];then
     echo "deb ${MIRROR} ${DIST}-updates ${COMPONENTS}" >>$ROOTFS/etc/apt/sources.list
+    echo "deb-src ${MIRROR} ${DIST}-updates ${COMPONENTS}" >>$ROOTFS/etc/apt/sources.list
 fi
 
 	# Add extra debsource
