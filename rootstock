@@ -1035,6 +1035,19 @@ if [ "$CLEAN_PACKAGE_CACHE" ];then
     clean_package_cache
 fi
 
+if [ ! "$(which qemu-arm-static)" -a ! "$IS_NATIVE" ];then
+	echo ""
+	echo "-----------------------------------"
+	echo "Running Rootstock inside a full virtual machine is bitrotten.."
+	echo "Please install qemu-arm-static via:"
+	echo "sudo apt-get install qemu-arm-static"
+	echo "If the package is unavailable, here's a copy i use"
+	echo "git clone git://github.com/RobertCNelson/linaro-tools.git"
+	echo "build script and readme under the qemu directory..."
+	echo "-----------------------------------"
+	exit 1
+fi
+
 # find if we should run full vm or just user emulation
 if [ "$NOROOT" ] || [ ! "$(which qemu-arm-static)" -a ! "$IS_NATIVE" ];then
     log "I: Second stage will run inside a full virtual machine"
