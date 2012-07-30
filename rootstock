@@ -984,7 +984,7 @@ if [ "$DEFARCH" = "armhf" ];then
     IS_DEBIAN=1
 fi
 
-if [ "$DIST" = "lenny" ] || [ "$DIST" = "squeeze" ] || [ "$DIST" = "wheezy" ] || [ "$DIST" = "sid" ];then
+if [ "$DIST" = "lenny" ] || [ "$DIST" = "squeeze" ] || [ "$DIST" = "wheezy" ] || [ "$DIST" = "jessie" ] || [ "$DIST" = "sid" ];then
 
     if [ ! $DEB_MIRROR ] && [ ! $DEB_COMPONENTS };then
 		echo "for debian add: --mirror http://ftp.us.debian.org/debian/"
@@ -1301,7 +1301,7 @@ else
 	# Use system default deb source
     echo "deb ${MIRROR} ${DIST} ${COMPONENTS}" >$ROOTFS/etc/apt/sources.list
     echo "deb-src ${MIRROR} ${DIST} ${COMPONENTS}" >>$ROOTFS/etc/apt/sources.list
-if [ "$DIST" != "wheezy" ] && [ "$DIST" != "sid" ];then
+if [ "$DIST" != "wheezy" ] && [ "$DIST" != "jessie" ] && [ "$DIST" != "sid" ] ;then
     echo "deb ${MIRROR} ${DIST}-updates ${COMPONENTS}" >>$ROOTFS/etc/apt/sources.list
     echo "deb-src ${MIRROR} ${DIST}-updates ${COMPONENTS}" >>$ROOTFS/etc/apt/sources.list
 fi
