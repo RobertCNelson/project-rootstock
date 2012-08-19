@@ -1271,7 +1271,7 @@ root
 root
 ROOTPASSWD
 
-echo "S:2345:respawn:/sbin/getty 115200 ${SERIAL_TTYS}" >> /etc/inittab
+echo "T2:23:respawn:/sbin/getty -L ${SERIAL_TTYS} 115200 vt102" >> /etc/inittab
 
 #if which dpkg-vendor >/dev/null 2>&1 && [ "`dpkg-vendor --query vendor`" = Ubuntu ]; then
 else
