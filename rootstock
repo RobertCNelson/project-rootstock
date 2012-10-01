@@ -198,6 +198,8 @@ Advanced:
     install board specfic kernel package from http accessible deb package inside rootfs
 --secondary-kernel-image <http url to kernel .deb>
     install 2nd board specfic kernel package from http accessible deb package inside rootfs
+--third-kernel-image <http url to kernel .deb>
+    install 3rd board specfic kernel package from http accessible deb package inside rootfs
 --copy-package-cache
     save a snapshot of all packages used for a build locally to re-use them
     in a subsequent offline build with the --restore-package-cache option
@@ -610,6 +612,41 @@ setup_secondary_kernel_image()
     SEC_KERNEL_IMAGE_DEPMOD="depmod $SEC_KERNEL_IMG_REL"
 }
 
+setup_third_kernel_image()
+{
+    log "I: Downloading third kernel image (deb) from external site"
+
+    THIRD_KERNEL_IMG=${THIRD_KERNEL_URL##*/}
+    test -d $ROOTFS/tmp/ || mkdir -p $ROOTFS/tmp/
+
+    if [ "$RESTORE_PACKAGE_CACHE" ] && \
+        [ -f "$CACHEDIR/kernel/$THIRD_KERNEL_IMG" ];then
+        log "I: Found cached $THIRD_KERNEL_IMG, skipping download"
+        cp $CACHEDIR/kernel/$THIRD_KERNEL_IMG $ROOTFS/tmp
+    else
+        THIRD_KERNELDIR=$(mktemp -d)
+        log "I: wget --directory-prefix=$THIRD_KERNELDIR $THIRD_KERNEL_URL"
+        wget --directory-prefix=$THIRD_KERNELDIR --quiet $THIRD_KERNEL_URL
+        log "I: $THIRD_KERNEL_IMG download complete"
+        cp $THIRD_KERNELDIR/$THIRD_KERNEL_IMG $ROOTFS/tmp
+
+        if [ "$COPY_PACKAGE_CACHE" ];then
+            mkdir -p $CACHEDIR/kernel
+            cp $THIRD_KERNELDIR/$THIRD_KERNEL_IMG $CACHEDIR/kernel
+        fi
+        rm -rf $THIRD_KERNELDIR
+    fi
+
+    #Hack dpkg -i fails, no postinstall script is run anyways, so lets just extract it.
+    THIRD_KERNEL_IMAGE_CMD="dpkg -x /tmp/$THIRD_KERNEL_IMG /"
+
+    THIRD_KERNEL_IMG_REL=${THIRD_KERNEL_IMG##*linux-image-}
+    THIRD_KERNEL_IMG_REL=$(echo $THIRD_KERNEL_IMG_REL | awk -F_ '{print $1}')
+
+    THIRD_KERNEL_IMAGE_CREATE_INITRAMFS="update-initramfs -c -k $THIRD_KERNEL_IMG_REL"
+    THIRD_KERNEL_IMAGE_DEPMOD="depmod $THIRD_KERNEL_IMG_REL"
+}
+
 get_vm_kernel()
 {
     if [ "$RESTORE_PACKAGE_CACHE" ];then
@@ -784,7 +821,7 @@ CHROOT="eval TMPDIR=/tmp chroot"
 GETOPT=`getopt -o hf:l:p:n:s:i:g:m:c:t:x:d:a:q --long help,fqdn:,login:,\
 password:,fullname:,seed:,imagesize:,manifest:,mirror:,components:,timezone:,\
 kblayout:,kbmodel:,kbvariant:,kboptions:,locale:,keepimage,notarball,script:,\
-serial:,sources:,doswap,swapsize:,dist:,arch:,quiet,kernel-image:,secondary-kernel-image:,copy-package-cache,\
+serial:,sources:,doswap,swapsize:,dist:,arch:,quiet,kernel-image:,secondary-kernel-image:,third-kernel-image:,copy-package-cache,\
 restore-package-cache,clean-package-cache,extra-mirror:,no-root,version,apt-upgrade \
 -n "$PROGRAM" -- "$@"`
 if [ $? != 0 ]; then usage; exit 1; fi
@@ -926,6 +963,11 @@ while true ; do
         --secondary-kernel-image)
             SEC_KERNEL_IMAGE=1
             SEC_KERNEL_URL="$2"
+            shift 2
+            ;;
+        --third-kernel-image)
+            THIRD_KERNEL_IMAGE=1
+            THIRD_KERNEL_URL="$2"
             shift 2
             ;;
         --copy-package-cache)
@@ -1149,6 +1191,10 @@ if [ "$SEC_KERNEL_IMAGE" ];then
     setup_secondary_kernel_image
 fi
 
+if [ "$THIRD_KERNEL_IMAGE" ];then
+    setup_third_kernel_image
+fi
+
 # write installer script to image
 cat > $BUILDDIR/installer <<EOF
 #!/bin/bash
@@ -1261,6 +1307,14 @@ else
 ${SEC_KERNEL_IMAGE_DEPMOD}
 fi
 
+${THIRD_KERNEL_IMAGE_CMD}
+if which update-initramfs >/dev/null 2>&1; then
+:
+${THIRD_KERNEL_IMAGE_CREATE_INITRAMFS}
+else
+:
+${THIRD_KERNEL_IMAGE_DEPMOD}
+fi
 
 ${PACKAGE_CLEANUP_SUB}
 
