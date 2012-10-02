@@ -1039,10 +1039,10 @@ if [ ! "$(which qemu-arm-static)" -a ! "$IS_NATIVE" ];then
 	echo ""
 	echo "-----------------------------------"
 	echo "Running Rootstock inside a full virtual machine is bitrotten.."
-	echo "Please build/install qemu-arm-static via:"
+	echo "Please build/install qemu-user-static via:"
 	echo ""
-	echo "git clone git://github.com/RobertCNelson/linaro-tools.git"
-	echo "build script and readme under the qemu directory..."
+	echo "Debian Wheezy:"
+	echo "sudo apt-get install qemu-user-static"
 	echo "-----------------------------------"
 	exit 1
 fi
