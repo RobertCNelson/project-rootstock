@@ -1042,7 +1042,7 @@ if [ ! "$(which qemu-arm-static)" -a ! "$IS_NATIVE" ];then
 	echo "Please build/install qemu-user-static via:"
 	echo ""
 	echo "Debian Wheezy:"
-	echo "sudo apt-get install qemu-user-static"
+	echo "sudo apt-get install qemu qemu-user-static"
 	echo "-----------------------------------"
 	exit 1
 fi
