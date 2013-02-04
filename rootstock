@@ -1288,6 +1288,9 @@ else
 ${SEC_KERNEL_IMAGE_DEPMOD}
 fi
 
+rm -f /tmp/*.deb || true
+rm -rf /usr/src/linux-headers* || true
+
 rm -f /usr/sbin/invoke-rc.d
 dpkg-divert --remove --rename /usr/sbin/invoke-rc.d
 
