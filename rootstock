@@ -1243,25 +1243,6 @@ else
     rm /usr/lib/ubiquity/plugins/ubi-tasks.py*
 fi
 
-${KERNEL_IMAGE_CMD}
-if which update-initramfs >/dev/null 2>&1; then
-:
-${KERNEL_IMAGE_CREATE_INITRAMFS}
-else
-:
-${KERNEL_IMAGE_DEPMOD}
-fi
-
-${SEC_KERNEL_IMAGE_CMD}
-if which update-initramfs >/dev/null 2>&1; then
-:
-${SEC_KERNEL_IMAGE_CREATE_INITRAMFS}
-else
-:
-${SEC_KERNEL_IMAGE_DEPMOD}
-fi
-
-
 ${PACKAGE_CLEANUP_SUB}
 
 if [ "$IS_DEBIAN" ];then
@@ -1283,14 +1264,32 @@ else
   passwd -l root || true
 fi
 
-rm -f /usr/sbin/invoke-rc.d
-dpkg-divert --remove --rename /usr/sbin/invoke-rc.d
-
 if [ -x /rootstock-user-script ]; then
     echo "I: Running user custom script"
     /rootstock-user-script
     rm -f /rootstock-user-script
 fi
+
+${KERNEL_IMAGE_CMD}
+if which update-initramfs >/dev/null 2>&1; then
+:
+${KERNEL_IMAGE_CREATE_INITRAMFS}
+else
+:
+${KERNEL_IMAGE_DEPMOD}
+fi
+
+${SEC_KERNEL_IMAGE_CMD}
+if which update-initramfs >/dev/null 2>&1; then
+:
+${SEC_KERNEL_IMAGE_CREATE_INITRAMFS}
+else
+:
+${SEC_KERNEL_IMAGE_DEPMOD}
+fi
+
+rm -f /usr/sbin/invoke-rc.d
+dpkg-divert --remove --rename /usr/sbin/invoke-rc.d
 
 if [ "$RUNVM" ];then
     mount -n -o remount,ro -t ext3 /dev/sda / || true
